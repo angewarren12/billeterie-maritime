@@ -1,0 +1,175 @@
+<?php
+
+namespace App\Http\Controllers\Api;
+
+use App\Http\Controllers\Controller;
+use App\Models\Trip;
+use App\Services\PricingService;
+use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Request;
+
+class TripController extends Controller
+{
+    protected $pricingService;
+
+    public function __construct(PricingService $pricingService)
+    {
+        $this->pricingService = $pricingService;
+    }
+
+    /**
+     * Recherche de traversées disponibles
+     * 
+     * Query params:
+     * - route_id: ID du trajet (optionnel)
+     * - date: Date de départ (YYYY-MM-DD, optionnel)
+     * - min_capacity: Capacité minimale disponible (optionnel)
+     */
+    public function search(Request $request): JsonResponse
+    {
+        $query = Trip::query();
+
+        // Filtre par statut (supporte plusieurs statuts séparés par des virgules)
+        if ($request->has('status')) {
+            $statuses = explode(',', $request->status);
+            $query->whereIn('status', $statuses);
+        } else {
+            $query->where('status', 'scheduled');
+        }
+
+        $query->where('departure_time', '>=', now()->subHours(1)) // Autoriser les trajets récents
+            ->with(['route.departurePort', 'route.arrivalPort', 'ship']);
+
+        // Filtre par trajet
+        if ($request->has('route_id')) {
+            $query->where('route_id', $request->route_id);
+        }
+
+        // Filtre par date
+        if ($request->has('date')) {
+            $query->whereDate('departure_time', $request->date);
+        }
+
+        // Filtre par capacité minimale
+        if ($request->has('min_capacity')) {
+            $query->where('available_seats_pax', '>=', $request->min_capacity);
+        }
+
+        $trips = $query->orderBy('departure_time')->get();
+
+
+        $result = $trips->map(function ($trip) {
+            return $this->formatTripResponse($trip);
+        });
+
+        return response()->json([
+            'trips' => $result,
+            'total' => $result->count()
+        ]);
+    }
+
+    /**
+     * Détails d'une traversée
+     */
+    public function show(Trip $trip): JsonResponse
+    {
+        $cacheKey = "trip_details_{$trip->id}";
+        
+        $tripData = \Illuminate\Support\Facades\Cache::remember($cacheKey, 600, function () use ($trip) {
+            $trip->load(['route.departurePort', 'route.arrivalPort', 'ship']);
+            return $this->formatTripResponse($trip, true);
+        });
+
+        return response()->json([
+            'trip' => $tripData
+        ]);
+    }
+
+    /**
+     * Calculer les prix pour un voyage
+     */
+    public function pricing(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'route_id' => 'required|exists:routes,id',
+            'passengers' => 'required|array|min:1',
+            'passengers.*.type' => 'required|in:adult,child,baby',
+            'passengers.*.nationality_group' => 'required|in:national,resident,non-resident',
+        ]);
+
+        $totalPrice = 0;
+        $details = [];
+
+        foreach ($validated['passengers'] as $passenger) {
+            $priceData = $this->pricingService->calculatePrice(
+                $validated['route_id'],
+                $passenger['type'],
+                $passenger['nationality_group']
+            );
+
+            if (!$priceData['found']) {
+                return response()->json([
+                    'error' => $priceData['error']
+                ], 400);
+            }
+
+            $totalPrice += $priceData['total'];
+            $details[] = [
+                'type' => $passenger['type'],
+                'nationality_group' => $passenger['nationality_group'],
+                'base_price' => $priceData['base'],
+                'tax' => $priceData['tax'],
+                'total' => $priceData['total'],
+            ];
+        }
+
+        return response()->json([
+            'route_id' => $validated['route_id'],
+            'passengers' => count($validated['passengers']),
+            'details' => $details,
+            'total_price' => $totalPrice,
+            'currency' => 'FCFA'
+        ]);
+    }
+
+    /**
+     * Formater la réponse d'un trip
+     */
+    private function formatTripResponse(Trip $trip, bool $detailed = false): array
+    {
+        $data = [
+            'id' => $trip->id,
+            'departure_time' => $trip->departure_time->toIso8601String(),
+            'arrival_time' => $trip->arrival_time ? $trip->arrival_time->toIso8601String() : null,
+            'status' => $trip->status,
+            'route' => [
+                'id' => $trip->route->id,
+                'name' => $trip->route->name,
+                'departure_port' => [
+                    'name' => $trip->route->departurePort->name,
+                    'code' => $trip->route->departurePort->code,
+                    'city' => $trip->route->departurePort->city,
+                ],
+                'arrival_port' => [
+                    'name' => $trip->route->arrivalPort->name,
+                    'code' => $trip->route->arrivalPort->code,
+                    'city' => $trip->route->arrivalPort->city,
+                ],
+            ],
+            'ship' => [
+                'id' => $trip->ship->id,
+                'name' => $trip->ship->name,
+                'capacity' => $trip->ship->capacity,
+            ],
+            'capacity_remaining' => $trip->available_seats_pax,
+            'availability' => $trip->available_seats_pax > 0 ? 'available' : 'full',
+        ];
+
+        if ($detailed) {
+            $data['created_at'] = $trip->created_at->toIso8601String();
+            $data['updated_at'] = $trip->updated_at->toIso8601String();
+        }
+
+        return $data;
+    }
+}

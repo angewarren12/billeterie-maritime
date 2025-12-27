@@ -1,0 +1,33 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --ocean-50: #f0f9ff;
+  --ocean-100: #e0f2fe;
+  --ocean-200: #bae6fd;
+  --ocean-300: #7dd3fc;
+  --ocean-400: #38bdf8;
+  --ocean-500: #0ea5e9;
+  --ocean-600: #0284c7;
+  --ocean-700: #0369a1;
+  --ocean-800: #075985;
+  --ocean-900: #0c4a6e;
+}
+
+body {
+  @apply bg-gray-50 text-gray-900 font-sans;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.btn-agent {
+  @apply px-6 py-4 rounded-2xl font-bold uppercase tracking-widest transition-all active:scale-95 flex items-center justify-center gap-3 text-sm;
+}
+
+.btn-agent-primary {
+  @apply btn-agent bg-ocean-600 text-white shadow-lg shadow-ocean-600/20 active:bg-ocean-700;
+}
+
+.card-agent {
+  @apply bg-white rounded-3xl p-6 border border-gray-100 shadow-sm active:border-ocean-200 transition-all;
+}
