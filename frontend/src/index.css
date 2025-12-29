@@ -1,1 +1,53 @@
-/* Styles gérés par Tailwind CDN dans index.html */
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+    body {
+        @apply bg-gray-50 text-gray-900 font-sans antialiased;
+    }
+
+    * {
+        @apply scroll-smooth;
+    }
+}
+
+@layer components {
+    .btn-primary {
+        @apply px-6 py-3 bg-gradient-to-r from-ocean-500 to-primary-600 text-white font-semibold rounded-xl shadow-lg hover:shadow-xl transform transition hover:-translate-y-0.5 active:translate-y-0 disabled:opacity-50 disabled:cursor-not-allowed;
+    }
+
+    .btn-secondary {
+        @apply px-6 py-3 bg-white text-ocean-600 font-semibold rounded-xl border-2 border-ocean-500 hover:bg-ocean-50 transition;
+    }
+
+    .card {
+        @apply bg-white rounded-2xl shadow-lg p-6 hover:shadow-xl transition-shadow;
+    }
+
+    .input-field {
+        @apply w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-ocean-500 focus:ring-2 focus:ring-ocean-200 outline-none transition;
+    }
+
+    .gradient-text {
+        @apply bg-gradient-to-r from-ocean-600 to-primary-600 bg-clip-text text-transparent;
+    }
+
+    .section-gradient {
+        @apply bg-gradient-to-br from-ocean-50 via-blue-50 to-primary-50;
+    }
+
+    .glass-effect {
+        @apply bg-white/80 backdrop-blur-md;
+    }
+}
+
+/* Utilitaires globaux supplémentaires */
+.hide-scrollbar::-webkit-scrollbar {
+    display: none;
+}
+
+.hide-scrollbar {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+}

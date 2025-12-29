@@ -15,12 +15,12 @@ return new class extends Migration
             $table->id();
             $table->string('name');
             $table->string('email')->unique();
+            $table->string('passenger_type')->default('adult');
+            $table->string('nationality_group')->default('national');
             $table->timestamp('email_verified_at')->nullable();
             $table->string('password');
-            $table->string('role')->default('client'); // admin, agent, client
+            $table->string('role')->default('client'); 
             $table->string('phone')->nullable();
-            $table->string('nationality')->nullable();
-            $table->string('type')->default('national'); // e.g. internal classification
             $table->string('document_number')->nullable();
             $table->string('photo_url')->nullable();
             $table->rememberToken();

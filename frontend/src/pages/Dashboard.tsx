@@ -280,7 +280,13 @@ const Dashboard = () => {
 
                                             <div className="bg-white/5 rounded-2xl p-5 border border-white/5">
                                                 <p className="text-[10px] text-ocean-300 font-bold uppercase mb-2">Solde Disponible</p>
-                                                <p className="text-4xl font-black tracking-tight">{parseFloat(sub.current_credit).toLocaleString('fr-FR')} <span className="text-lg text-ocean-200">FCFA</span></p>
+                                                {sub.plan.credit_type === 'unlimited' ? (
+                                                    <p className="text-4xl font-black tracking-tight">ILLIMITÉ <span className="text-lg text-ocean-200">∞</span></p>
+                                                ) : sub.voyage_credits_initial > 0 ? (
+                                                    <p className="text-4xl font-black tracking-tight">{sub.voyage_credits_remaining} <span className="text-lg text-ocean-200">Voyages</span></p>
+                                                ) : (
+                                                    <p className="text-4xl font-black tracking-tight">{Number(sub.legacy_credit_fcfa || 0).toLocaleString('fr-FR')} <span className="text-lg text-ocean-200">FCFA</span></p>
+                                                )}
                                             </div>
 
                                             <div className="pt-4 border-t border-white/10 flex justify-between items-center">
@@ -530,7 +536,13 @@ const Dashboard = () => {
                             <div className="grid grid-cols-2 gap-4">
                                 <div className="bg-gray-50 p-4 rounded-2xl">
                                     <p className="text-[10px] uppercase text-gray-400 font-bold mb-1">Solde Actuel</p>
-                                    <p className="text-xl font-black text-gray-900">{parseFloat(viewBadge.current_credit).toLocaleString('fr-FR')} FCFA</p>
+                                    {viewBadge.plan.credit_type === 'unlimited' ? (
+                                        <p className="text-xl font-black text-gray-900">Voyages Illimités</p>
+                                    ) : viewBadge.voyage_credits_initial > 0 ? (
+                                        <p className="text-xl font-black text-gray-900">{viewBadge.voyage_credits_remaining} Voyages</p>
+                                    ) : (
+                                        <p className="text-xl font-black text-gray-900">{Number(viewBadge.legacy_credit_fcfa || 0).toLocaleString('fr-FR')} FCFA</p>
+                                    )}
                                 </div>
                                 <div className="bg-gray-50 p-4 rounded-2xl">
                                     <p className="text-[10px] uppercase text-gray-400 font-bold mb-1">Badge RFID</p>

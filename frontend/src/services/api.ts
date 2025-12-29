@@ -79,12 +79,28 @@ export interface PricingResponse {
     currency: string;
 }
 
+export interface SubscriptionPlanModel {
+    id: string;
+    name: string;
+    price: number;
+    duration_days: number;
+    period: string;
+    credit_type: 'unlimited' | 'counted';
+    voyage_credits: number;
+}
+
 export interface Subscription {
     id: string;
     plan_name: string;
-    current_credit: number;
+    plan: SubscriptionPlanModel;
     end_date: string;
     status: string;
+    // Nouveaux champs
+    voyage_credits_initial: number;
+    voyage_credits_remaining: number;
+    legacy_credit_fcfa: number;
+    // Legacy support (pour compatibilité)
+    current_credit: number;
 }
 
 export interface SubscriptionResponse {

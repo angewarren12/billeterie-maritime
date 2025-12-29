@@ -119,6 +119,72 @@ const Confirmation = () => {
                             </div>
                         </div>
 
+                        {/* QR Codes Section */}
+                        <div className="mb-8">
+                            <h3 className="text-xl font-black text-gray-900 mb-4 flex items-center gap-2">
+                                <TicketIcon className="w-6 h-6 text-ocean-600" />
+                                Vos billets électroniques
+                            </h3>
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                {booking.tickets.map((ticket: any, idx: number) => (
+                                    <div key={idx} className="bg-gradient-to-br from-ocean-900 to-ocean-800 rounded-2xl p-6 text-white shadow-2xl shadow-ocean-300/50 border border-ocean-700">
+                                        <div className="flex items-center justify-between mb-4 pb-4 border-b border-white/20">
+                                            <div>
+                                                <p className="text-xs text-ocean-300 font-bold uppercase tracking-wider mb-1">Passager {idx + 1}</p>
+                                                <p className="font-black text-lg">{ticket.passenger_name}</p>
+                                            </div>
+                                            <span className={`px-3 py-1 rounded-full text-xs font-bold ${ticket.status === 'issued' ? 'bg-green-500/20 text-green-300 border border-green-400/30' :
+                                                ticket.status === 'used' ? 'bg-blue-500/20 text-blue-300 border border-blue-400/30' :
+                                                    'bg-gray-500/20 text-gray-300 border border-gray-400/30'
+                                                }`}>
+                                                {ticket.status === 'issued' ? 'Valide' : ticket.status === 'used' ? 'Utilisé' : ticket.status}
+                                            </span>
+                                        </div>
+
+                                        {/* QR Code Display */}
+                                        <div className="bg-white p-4 rounded-xl mb-4">
+                                            <div className="flex items-center justify-center">
+                                                <img
+                                                    src={`https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(ticket.qr_code_data)}`}
+                                                    alt={`QR Code pour ${ticket.passenger_name}`}
+                                                    className="w-40 h-40"
+                                                />
+                                            </div>
+                                        </div>
+
+                                        <div className="text-center mb-4">
+                                            <p className="text-xs text-ocean-300 font-mono mb-1">Code de référence</p>
+                                            <p className="text-sm font-bold text-white/90">{ticket.qr_code_data}</p>
+                                        </div>
+
+                                        {/* Individual Ticket Link */}
+                                        <div className="bg-white/10 p-3 rounded-xl border border-white/20">
+                                            <p className="text-xs text-ocean-200 font-bold mb-2 text-center">🔗 Lien personnel du billet</p>
+                                            <div className="flex gap-2">
+                                                <input
+                                                    readOnly
+                                                    value={`${window.location.origin}/ticket/${ticket.qr_code_data}`}
+                                                    className="flex-1 px-3 py-2 bg-white/90 text-gray-800 rounded-lg text-xs font-mono select-all"
+                                                />
+                                                <button
+                                                    onClick={() => {
+                                                        navigator.clipboard.writeText(`${window.location.origin}/ticket/${ticket.qr_code_data}`);
+                                                        alert('✅ Lien copié !');
+                                                    }}
+                                                    className="px-3 py-2 bg-ocean-500 hover:bg-ocean-400 text-white font-bold rounded-lg text-xs transition"
+                                                >
+                                                    📋
+                                                </button>
+                                            </div>
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                            <p className="text-xs text-gray-500 mt-4 text-center italic">
+                                💡 Présentez ces codes QR à l'embarquement
+                            </p>
+                        </div>
+
                         {/* Lien de partage public */}
                         <div className="bg-ocean-50 p-6 rounded-2xl border border-ocean-100 mb-8">
                             <h3 className="font-bold text-ocean-800 mb-2">Partager le billet</h3>

@@ -21,40 +21,55 @@ export default function SearchForm({ onSearch }: SearchFormProps) {
     const [arrivalPortId, setArrivalPortId] = useState('');
     const [selectedDate, setSelectedDate] = useState(format(new Date(), 'yyyy-MM-dd'));
     const [passengers, setPassengers] = useState(1);
-    const [loading, setLoading] = useState(false);
-    const [error, setError] = useState('');
+    const [loadingPorts, setLoadingPorts] = useState(true);
+    const [isSearching, setIsSearching] = useState(false);
+    const [searchError, setSearchError] = useState('');
 
     useEffect(() => {
+        const cachedRoutes = localStorage.getItem('cached_routes');
+        if (cachedRoutes) {
+            try {
+                const parsed = JSON.parse(cachedRoutes);
+                processRoutesAndPorts(parsed);
+                setLoadingPorts(false);
+            } catch (e) {
+                console.error('Error parsing cached routes');
+            }
+        }
         loadRoutesAndPorts();
     }, []);
+
+    const processRoutesAndPorts = (routesData: Route[]) => {
+        setRoutes(routesData);
+        const uniquePorts = new Map<string, Port>();
+        routesData.forEach(route => {
+            if (route.departure_port) {
+                uniquePorts.set(route.departure_port.id, route.departure_port);
+            }
+            if (route.arrival_port) {
+                uniquePorts.set(route.arrival_port.id, route.arrival_port);
+            }
+        });
+        setPorts(Array.from(uniquePorts.values()));
+    };
 
     const loadRoutesAndPorts = async () => {
         try {
             const data = await apiService.getRoutes();
-            setRoutes(data.routes);
-
-            // Extraire tous les ports uniques des routes
-            const uniquePorts = new Map<string, Port>();
-            data.routes.forEach(route => {
-                if (route.departure_port) {
-                    uniquePorts.set(route.departure_port.id, route.departure_port);
-                }
-                if (route.arrival_port) {
-                    uniquePorts.set(route.arrival_port.id, route.arrival_port);
-                }
-            });
-
-            setPorts(Array.from(uniquePorts.values()));
+            processRoutesAndPorts(data.routes);
+            localStorage.setItem('cached_routes', JSON.stringify(data.routes));
         } catch (err) {
             console.error('Error loading routes:', err);
-            setError('Impossible de charger les ports');
+            setSearchError('Impossible de charger les ports');
+        } finally {
+            setLoadingPorts(false);
         }
     };
 
     const handleSearch = async (e: React.FormEvent) => {
         e.preventDefault();
-        setLoading(true);
-        setError('');
+        setIsSearching(true);
+        setSearchError('');
 
         try {
             // Trouver la route correspondante
@@ -63,8 +78,8 @@ export default function SearchForm({ onSearch }: SearchFormProps) {
             );
 
             if (!matchingRoute) {
-                setError('Aucun trajet disponible pour cette combinaison de ports');
-                setLoading(false);
+                setSearchError('Aucun trajet disponible pour cette combinaison de ports');
+                setIsSearching(false);
                 return;
             }
 
@@ -78,10 +93,10 @@ export default function SearchForm({ onSearch }: SearchFormProps) {
                 onSearch(data.trips);
             }
         } catch (err) {
-            setError('Erreur lors de la recherche');
+            setSearchError('Erreur lors de la recherche');
             console.error(err);
         } finally {
-            setLoading(false);
+            setIsSearching(false);
         }
     };
 
@@ -98,7 +113,7 @@ export default function SearchForm({ onSearch }: SearchFormProps) {
         : [];
 
     return (
-        <div className="card max-w-5xl mx-auto">
+        <div className="bg-white/80 backdrop-blur-xl rounded-[2.5rem] shadow-2xl p-8 md:p-10 border border-white/20 max-w-5xl mx-auto">
             <form onSubmit={handleSearch} className="space-y-6">
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
                     {/* Port de départ */}
@@ -119,7 +134,7 @@ export default function SearchForm({ onSearch }: SearchFormProps) {
                             className="input-field"
                             required
                         >
-                            <option value="">Choisir un port</option>
+                            <option value="">{loadingPorts ? 'Chargement...' : 'Choisir un port'}</option>
                             {ports.map((port) => (
                                 <option key={port.id} value={port.id}>
                                     {port.name} ({port.city})
@@ -141,10 +156,10 @@ export default function SearchForm({ onSearch }: SearchFormProps) {
                             onChange={(e) => setArrivalPortId(e.target.value)}
                             className="input-field"
                             required
-                            disabled={!departurePortId}
+                            disabled={!departurePortId || loadingPorts}
                         >
                             <option value="">
-                                {departurePortId ? 'Choisir une destination' : 'Sélectionnez d\'abord un port de départ'}
+                                {loadingPorts ? 'Chargement...' : (departurePortId ? 'Choisir une destination' : 'Sélectionnez d\'abord un port de départ')}
                             </option>
                             {availableArrivalPorts.map((port) => (
                                 <option key={port.id} value={port.id}>
@@ -202,10 +217,10 @@ export default function SearchForm({ onSearch }: SearchFormProps) {
                 <div className="flex justify-center">
                     <button
                         type="submit"
-                        disabled={loading}
+                        disabled={isSearching || loadingPorts}
                         className="btn-primary text-lg px-12 disabled:opacity-50 disabled:cursor-not-allowed"
                     >
-                        {loading ? (
+                        {isSearching ? (
                             <span className="flex items-center justify-center gap-2">
                                 <svg className="animate-spin h-5 w-5" viewBox="0 0 24 24">
                                     <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
@@ -224,9 +239,9 @@ export default function SearchForm({ onSearch }: SearchFormProps) {
                     </button>
                 </div>
 
-                {error && (
+                {searchError && (
                     <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg text-center">
-                        {error}
+                        {searchError}
                     </div>
                 )}
             </form>

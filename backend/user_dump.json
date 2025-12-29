@@ -1,0 +1,14 @@
+{
+    "id": 1,
+    "name": "Admin User",
+    "email": "admin@example.com",
+    "passenger_type": "adult",
+    "nationality_group": "national",
+    "email_verified_at": null,
+    "role": "admin",
+    "phone": null,
+    "document_number": null,
+    "photo_url": null,
+    "created_at": "2025-12-29T11:27:31.000000Z",
+    "updated_at": "2025-12-29T11:27:31.000000Z"
+}

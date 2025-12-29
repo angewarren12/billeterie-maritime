@@ -18,6 +18,21 @@ class SubscriptionPlanForm
                     ->required()
                     ->numeric()
                     ->suffix('FCFA'),
+                \Filament\Forms\Components\Select::make('credit_type')
+                    ->options([
+                        'counted' => 'Nombre fixe de crédits',
+                        'unlimited' => 'Illimité pendant la durée',
+                    ])
+                    ->required()
+                    ->reactive()
+                    ->default('counted')
+                    ->label('Type de crédit'),
+                TextInput::make('voyage_credits')
+                    ->numeric()
+                    ->default(0)
+                    ->visible(fn ($get) => $get('credit_type') === 'counted')
+                    ->label('Nombre de crédits voyage')
+                    ->helperText('Combien de voyages sont inclus dans ce plan'),
                 TextInput::make('duration_days')
                     ->required()
                     ->numeric()
@@ -29,6 +44,7 @@ class SubscriptionPlanForm
                     ->options([
                         'ANNUEL' => 'Annuel',
                         'MENSUEL' => 'Mensuel',
+                        'HEBDOMADAIRE' => 'Hebdomadaire',
                     ])
                     ->required()
                     ->default('ANNUEL'),
@@ -38,6 +54,7 @@ class SubscriptionPlanForm
                         'MARIAMA BA' => 'MARIAMA BA',
                         'PROFESSIONNEL' => 'PROFESSIONNEL',
                         '3EME AGE' => '3EME AGE',
+                        'AUTRE' => 'AUTRE',
                     ])
                     ->required(),
             ]);

@@ -1,3 +1,5 @@
+import { Link } from 'react-router-dom';
+
 export default function Footer() {
     return (
         <footer className="bg-gradient-to-br from-gray-900 to-gray-800 text-white mt-20">
@@ -27,9 +29,9 @@ export default function Footer() {
                     <div>
                         <h4 className="font-semibold mb-4">Services</h4>
                         <ul className="space-y-2 text-sm text-gray-300">
-                            <li><a href="/reserver" className="hover:text-ocean-400 transition">Réserver un billet</a></li>
-                            <li><a href="/mes-reservations" className="hover:text-ocean-400 transition">Mes réservations</a></li>
-                            <li><a href="/abonnements" className="hover:text-ocean-400 transition">Abonnements</a></li>
+                            <li><Link to="/reserver" className="hover:text-ocean-400 transition">Réserver un billet</Link></li>
+                            <li><Link to="/mon-compte" className="hover:text-ocean-400 transition">Mes réservations</Link></li>
+                            <li><Link to="/mon-compte" className="hover:text-ocean-400 transition">Abonnements</Link></li>
                             <li><a href="/groupes" className="hover:text-ocean-400 transition">Voyages de groupe</a></li>
                         </ul>
                     </div>

@@ -50,9 +50,9 @@ export default function PublicTicket() {
                 {trip && (
                     <div className="px-8 pb-6 text-center">
                         <div className="flex items-center justify-center gap-4 mb-2">
-                            <span className="text-2xl font-black text-gray-900">{trip.route.departurePort.name}</span>
+                            <span className="text-2xl font-black text-gray-900">{trip.route?.departure_port?.name || trip.route?.departurePort?.name || 'Port'}</span>
                             <div className="h-0.5 w-8 bg-gray-200 rounded-full"></div>
-                            <span className="text-2xl font-black text-gray-900">{trip.route.arrivalPort.name}</span>
+                            <span className="text-2xl font-black text-gray-900">{trip.route?.arrival_port?.name || trip.route?.arrivalPort?.name || 'Port'}</span>
                         </div>
                         <p className="text-ocean-500 font-bold bg-ocean-50 inline-block px-4 py-1 rounded-full text-sm">
                             {new Date(trip.departure_time).toLocaleDateString('fr-FR', { weekday: 'short', day: 'numeric', month: 'long' })} à {new Date(trip.departure_time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}

@@ -25,6 +25,8 @@ class DatabaseSeeder extends Seeder
                 'name' => 'Admin User',
                 'password' => \Illuminate\Support\Facades\Hash::make('password'), // Mot de passe par défaut
                 'role' => 'admin',
+                'passenger_type' => 'adult',
+                'nationality_group' => 'national',
             ]
         );
         

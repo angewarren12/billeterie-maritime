@@ -33,9 +33,7 @@ Route::get('/public/booking/{reference}', [BookingController::class, 'showPublic
 
 // Authentification
 Route::prefix('auth')->group(function () {
-    Route::post('/register', [AuthController::class, '
-
-register']);
+    Route::post('/register', [AuthController::class, 'register']);
     Route::post('/login', [AuthController::class, 'login']);
 });
 

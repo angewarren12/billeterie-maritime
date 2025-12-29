@@ -16,11 +16,14 @@ class SubscriptionPlan extends Model
         'period',
         'category',
         'is_active',
+        'voyage_credits',
+        'credit_type',
     ];
 
     protected $casts = [
         'price' => 'decimal:2',
         'is_active' => 'boolean',
+        'voyage_credits' => 'integer',
     ];
 
     public function subscriptions()

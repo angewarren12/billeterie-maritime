@@ -35,7 +35,8 @@ class DummyDataSeeder extends Seeder
         $clients = User::factory(20)->create([
             'role' => 'client',
             'password' => bcrypt('password'), // Easy password for testing
-            'nationality' => 'sénégalaise',
+            'nationality_group' => 'national',
+            'passenger_type' => 'adult',
         ]);
 
         // 2. Create Badges

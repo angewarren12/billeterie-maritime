@@ -24,6 +24,8 @@ class AgentSeeder extends Seeder
                 'name' => 'Agent de Quai 01',
                 'password' => Hash::make('password'),
                 'phone' => '771234567',
+                'passenger_type' => 'adult',
+                'nationality_group' => 'national',
                 'email_verified_at' => now(),
             ]
         );

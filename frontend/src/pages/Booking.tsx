@@ -44,6 +44,9 @@ export default function Booking() {
     const [hasAccount, setHasAccount] = useState<boolean | null>(null);
     const [createAccount, setCreateAccount] = useState(false);
     const [password, setPassword] = useState('');
+    const [nameForAccount, setNameForAccount] = useState('');
+    const [isRegistering, setIsRegistering] = useState(false);
+    const [registerError, setRegisterError] = useState('');
 
     // Login State
     const [loginEmail, setLoginEmail] = useState('');
@@ -227,8 +230,62 @@ export default function Booking() {
         }
     };
 
-    const nextStep = () => {
-        if (currentStep < 4) setCurrentStep(currentStep + 1);
+    const nextStep = async () => {
+        if (currentStep === 1 && !user) {
+            // Si l'utilisateur veut créer un compte à cette étape
+            if (hasAccount === false && createAccount) {
+                if (!nameForAccount || !email || !password) {
+                    setRegisterError("Veuillez remplir tous les champs (Nom, Email, Mot de passe)");
+                    return;
+                }
+
+                setIsRegistering(true);
+                setRegisterError('');
+                try {
+                    const response = await apiService.register({
+                        name: nameForAccount,
+                        email,
+                        password,
+                        password_confirmation: password,
+                        phone: phone
+                    });
+
+                    if (response.token && response.user) {
+                        updateAuthState(response.token, response.user);
+                        alert("Compte créé avec succès ! Bienvenue.");
+                    }
+                    setCurrentStep(2);
+                } catch (error: any) {
+                    console.error("Registration error:", error);
+                    setRegisterError(error.response?.data?.message || "Erreur lors de la création du compte. L'email est peut-être déjà utilisé.");
+                    return;
+                } finally {
+                    setIsRegistering(false);
+                }
+            } else if (hasAccount === false && !createAccount) {
+                // Mode Invité
+                if (!email) {
+                    setRegisterError("Veuillez entrer votre email pour continuer");
+                    return;
+                }
+                setCurrentStep(2);
+            } else if (hasAccount === true && !user) {
+                setLoginError("Veuillez vous connecter pour continuer");
+                return;
+            } else {
+                setCurrentStep(2);
+            }
+        } else if (currentStep === 2) {
+            // VALIDATION ÉTAPE 2 : Vérifier que tous les passagers ont un nom
+            const missingNames = passengers.filter(p => !p.name || p.name.trim() === '');
+            if (missingNames.length > 0) {
+                alert(`⚠️ Veuillez renseigner le nom de tous les passagers (${missingNames.length} nom(s) manquant(s))`);
+                return;
+            }
+            setCurrentStep(3);
+        } else if (currentStep < 4) {
+            setCurrentStep(currentStep + 1);
+        }
     };
 
     const prevStep = () => {
@@ -334,7 +391,13 @@ export default function Booking() {
                                                     <div key={sub.id} className="p-4 bg-white rounded-xl border-2 border-ocean-100 hover:border-ocean-300 transition">
                                                         <p className="font-bold text-ocean-900">{sub.plan_name}</p>
                                                         <p className="text-sm text-ocean-700 mt-1">
-                                                            {sub.current_credit} voyage{sub.current_credit > 1 ? 's' : ''} restant{sub.current_credit > 1 ? 's' : ''}
+                                                            {sub.plan.credit_type === 'unlimited' ? (
+                                                                <span className="font-bold text-green-600">Voyages Illimités</span>
+                                                            ) : sub.voyage_credits_initial > 0 ? (
+                                                                <span className="font-bold">{sub.voyage_credits_remaining} voyage{sub.voyage_credits_remaining > 1 ? 's' : ''} restant{sub.voyage_credits_remaining > 1 ? 's' : ''}</span>
+                                                            ) : (
+                                                                <span>{Number(sub.legacy_credit_fcfa || 0).toLocaleString('fr-FR')} FCFA restants</span>
+                                                            )}
                                                         </p>
                                                     </div>
                                                 ))}
@@ -366,6 +429,15 @@ export default function Booking() {
 
                                     {hasAccount === false && (
                                         <div className="space-y-6 animate-fade-in">
+                                            {registerError && <p className="text-red-500 text-sm font-bold text-center bg-red-50 p-3 rounded-lg">{registerError}</p>}
+
+                                            {createAccount && (
+                                                <div className="animate-fade-in">
+                                                    <label className="block text-sm font-bold text-gray-700 mb-2">Nom complet</label>
+                                                    <input type="text" value={nameForAccount} onChange={(e) => setNameForAccount(e.target.value)} className="input-field" placeholder="Prénom NOM" />
+                                                </div>
+                                            )}
+
                                             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                                                 <div>
                                                     <label className="block text-sm font-bold text-gray-700 mb-2">Email de réception</label>
@@ -400,47 +472,173 @@ export default function Booking() {
                     {/* ÉTAPE 2 : PASSAGERS */}
                     {currentStep === 2 && (
                         <div className="animate-fade-in">
-                            <h3 className="text-3xl font-black mb-8 text-gray-900">Passagers</h3>
-                            {passengers.map((passenger, index) => (
-                                <div key={index} className="mb-6 p-6 bg-gradient-to-br from-gray-50 to-white rounded-2xl border-2 border-gray-100 hover:border-ocean-200 transition">
-                                    <div className="flex justify-between items-center mb-6">
-                                        <h4 className="font-black text-lg flex items-center gap-3">
-                                            <span className="w-10 h-10 rounded-full bg-gradient-to-br from-ocean-500 to-ocean-600 text-white flex items-center justify-center font-bold shadow-lg">{index + 1}</span>
-                                            Passager {index + 1}
-                                            {index === 0 && user && (
-                                                <span className="text-xs bg-green-100 text-green-700 px-3 py-1 rounded-full font-bold">Vous</span>
-                                            )}
-                                        </h4>
+                            <h3 className="text-3xl font-black mb-8 text-gray-900">Informations des passagers</h3>
+                            {passengers.map((passenger, index) => {
+                                const passengerPrice = getPrice(passenger.type, passenger.nationality_group);
+                                return (
+                                    <div key={index} className="mb-6 p-8 bg-gradient-to-br from-gray-50 via-white to-ocean-50/20 rounded-3xl border-2 border-gray-100 hover:border-ocean-300 transition-all duration-300 shadow-lg hover:shadow-2xl">
+                                        {/* Header */}
+                                        <div className="flex justify-between items-start mb-6 pb-6 border-b-2 border-gray-100">
+                                            <div className="flex items-center gap-4">
+                                                <span className="w-14 h-14 rounded-2xl bg-gradient-to-br from-ocean-500 to-ocean-600 text-white flex items-center justify-center font-black text-xl shadow-xl shadow-ocean-200/50">
+                                                    {index + 1}
+                                                </span>
+                                                <div>
+                                                    <h4 className="font-black text-xl text-gray-900">
+                                                        Passager {index + 1}
+                                                        {index === 0 && user && (
+                                                            <span className="ml-3 text-xs bg-green-100 text-green-700 px-3 py-1.5 rounded-full font-bold border border-green-200">Vous</span>
+                                                        )}
+                                                    </h4>
+                                                    <p className="text-sm text-gray-500 font-medium mt-1">
+                                                        {passenger.name || "Nom non renseigné"}
+                                                    </p>
+                                                </div>
+                                            </div>
+
+                                            {/* Price Badge */}
+                                            <div className="text-right">
+                                                <p className="text-xs font-bold text-gray-500 uppercase tracking-widest mb-1">Prix</p>
+                                                <p className="text-3xl font-black bg-gradient-to-r from-ocean-600 to-primary-600 bg-clip-text text-transparent">
+                                                    {passengerPrice.toLocaleString()}
+                                                </p>
+                                                <p className="text-xs font-bold text-gray-400">FCFA</p>
+                                            </div>
+                                        </div>
+
+                                        {/* Form Grid */}
+                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+                                            {/* Type */}
+                                            <div>
+                                                <label className="block text-sm font-bold text-gray-700 mb-3 flex items-center gap-2">
+                                                    <svg className="w-4 h-4 text-ocean-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                                                    </svg>
+                                                    Type de passager
+                                                </label>
+                                                <select
+                                                    value={passenger.type}
+                                                    onChange={(e) => updatePassenger(index, 'type', e.target.value as any)}
+                                                    className="input-field text-base font-semibold"
+                                                >
+                                                    <option value="adult">👤 Adulte (12+ ans)</option>
+                                                    <option value="child">👶 Enfant (2-12 ans)</option>
+                                                    <option value="baby">🍼 Bébé (&lt;2 ans) - Gratuit</option>
+                                                </select>
+                                            </div>
+
+                                            {/* Nationality */}
+                                            <div>
+                                                <label className="block text-sm font-bold text-gray-700 mb-3 flex items-center gap-2">
+                                                    <svg className="w-4 h-4 text-ocean-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3.055 11H5a2 2 0 012 2v1a2 2 0 002 2 2 2 0 012 2v2.945M8 3.935V5.5A2.5 2.5 0 0010.5 8h.5a2 2 0 012 2 2 2 0 104 0 2 2 0 012-2h1.064M15 20.488V18a2 2 0 012-2h3.064M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                                    </svg>
+                                                    Nationalité / Résidence
+                                                </label>
+                                                <select
+                                                    value={passenger.nationality_group}
+                                                    onChange={(e) => updatePassenger(index, 'nationality_group', e.target.value as any)}
+                                                    className="input-field text-base font-semibold"
+                                                >
+                                                    <option value="national">🇸🇳 Sénégalais (National)</option>
+                                                    <option value="resident">🏠 Résident (Sénégal)</option>
+                                                    <option value="african">🌍 Résident Afrique</option>
+                                                    <option value="hors_afrique">✈️ Non-résident Afrique</option>
+                                                </select>
+                                            </div>
+
+                                            {/* Full Name */}
+                                            <div className="md:col-span-2">
+                                                <label className="block text-sm font-bold text-gray-700 mb-3 flex items-center gap-2">
+                                                    <svg className="w-4 h-4 text-ocean-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
+                                                    </svg>
+                                                    Nom complet
+                                                </label>
+                                                <input
+                                                    type="text"
+                                                    value={passenger.name}
+                                                    onChange={(e) => updatePassenger(index, 'name', e.target.value)}
+                                                    placeholder="Prénom NOM (tel que sur la pièce d'identité)"
+                                                    className="input-field text-base"
+                                                />
+                                            </div>
+                                        </div>
+
+                                        {/* Price Breakdown */}
+                                        <div className="p-5 bg-gradient-to-br from-ocean-900 to-ocean-800 rounded-2xl border border-ocean-700">
+                                            <div className="flex items-center justify-between text-white">
+                                                <div className="flex items-center gap-3">
+                                                    <svg className="w-5 h-5 text-ocean-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 14l6-6m-5.5.5h.01m4.99 5h.01M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16l3.5-2 3.5 2 3.5-2 3.5 2zM10 8.5a.5.5 0 11-1 0 .5.5 0 011 0zm5 5a.5.5 0 11-1 0 .5.5 0 011 0z" />
+                                                    </svg>
+                                                    <div>
+                                                        <p className="text-xs font-bold text-ocean-300 uppercase tracking-wider">Tarif appliqué</p>
+                                                        <p className="text-sm font-medium text-ocean-100 mt-0.5">
+                                                            {passenger.type === 'adult' ? 'Adulte' : passenger.type === 'child' ? 'Enfant' : 'Bébé'} • {
+                                                                passenger.nationality_group === 'national' ? 'National' :
+                                                                    passenger.nationality_group === 'resident' ? 'Résident' :
+                                                                        passenger.nationality_group === 'african' ? 'Africain' :
+                                                                            'International'
+                                                            }
+                                                        </p>
+                                                    </div>
+                                                </div>
+                                                <div className="text-right">
+                                                    <p className="text-2xl font-black text-white">
+                                                        {passengerPrice.toLocaleString()} <span className="text-base font-bold text-ocean-200">FCFA</span>
+                                                    </p>
+                                                    {passengerPrice === 0 && (
+                                                        <p className="text-xs text-green-300 font-bold mt-1">✓ Gratuit</p>
+                                                    )}
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        {/* Remove Button */}
                                         {passengers.length > 1 && (
-                                            <button onClick={() => removePassenger(index)} className="text-gray-400 hover:text-red-500 transition"><BanknotesIcon className="w-6 h-6" /></button>
+                                            <button
+                                                onClick={() => removePassenger(index)}
+                                                className="mt-4 w-full py-3 text-red-600 border-2 border-red-200 rounded-xl font-bold hover:bg-red-50 transition-all flex items-center justify-center gap-2"
+                                            >
+                                                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                                </svg>
+                                                Retirer ce passager
+                                            </button>
                                         )}
                                     </div>
-                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                        <div>
-                                            <label className="block text-sm font-bold text-gray-700 mb-2">Type</label>
-                                            <select value={passenger.type} onChange={(e) => updatePassenger(index, 'type', e.target.value as any)} className="input-field">
-                                                <option value="adult">Adulte</option>
-                                                <option value="child">Enfant</option>
-                                                <option value="baby">Bébé</option>
-                                            </select>
-                                        </div>
-                                        <div>
-                                            <label className="block text-sm font-bold text-gray-700 mb-2">Nationalité</label>
-                                            <select value={passenger.nationality_group} onChange={(e) => updatePassenger(index, 'nationality_group', e.target.value as any)} className="input-field">
-                                                <option value="national">Sénégalais (National)</option>
-                                                <option value="resident">Résident (Sénégal)</option>
-                                                <option value="african">Résident Afrique</option>
-                                                <option value="hors_afrique">Non-résident Afrique</option>
-                                            </select>
-                                        </div>
-                                        <div className="md:col-span-2">
-                                            <label className="block text-sm font-bold text-gray-700 mb-2">Nom complet</label>
-                                            <input type="text" value={passenger.name} onChange={(e) => updatePassenger(index, 'name', e.target.value)} placeholder="Prénom NOM" className="input-field" />
-                                        </div>
+                                );
+                            })}
+
+                            {/* Add Passenger Button */}
+                            <button
+                                onClick={addPassenger}
+                                className="w-full py-6 border-3 border-dashed border-ocean-300 rounded-3xl text-ocean-600 font-black text-lg hover:bg-ocean-50 transition-all hover:border-ocean-500 hover:scale-[1.02] shadow-lg hover:shadow-xl flex items-center justify-center gap-3"
+                            >
+                                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+                                </svg>
+                                Ajouter un passager
+                            </button>
+
+                            {/* Total Summary */}
+                            <div className="mt-8 p-8 bg-gradient-to-br from-ocean-900 to-primary-900 rounded-3xl shadow-2xl">
+                                <div className="flex items-center justify-between">
+                                    <div>
+                                        <p className="text-ocean-300 text-sm font-bold uppercase tracking-widest mb-2">Total pour {passengers.length} passager{passengers.length > 1 ? 's' : ''}</p>
+                                        <p className="text-white text-xl font-medium">
+                                            {passengers.map(p => `${p.name || 'Anonyme'}`).join(', ')}
+                                        </p>
+                                    </div>
+                                    <div className="text-right">
+                                        <p className="text-5xl font-black text-white">
+                                            {calculateTotal().toLocaleString()}
+                                        </p>
+                                        <p className="text-ocean-200 text-lg font-bold mt-1">FCFA</p>
                                     </div>
                                 </div>
-                            ))}
-                            <button onClick={addPassenger} className="w-full py-5 border-2 border-dashed border-ocean-300 rounded-2xl text-ocean-600 font-bold hover:bg-ocean-50 transition-all hover:border-ocean-500">+ Ajouter un passager</button>
+                            </div>
                         </div>
                     )}
 
@@ -497,7 +695,16 @@ export default function Booking() {
                                                     {subscriptions[0].plan_name}
                                                 </p>
                                                 <p className="text-sm text-ocean-700 mt-1">
-                                                    Votre billet sera payé par le badge. Solde actuel : <span className="font-bold">{parseFloat(subscriptions[0].current_credit).toLocaleString('fr-FR')} FCFA</span>
+                                                    Votre billet sera payé par le badge. Solde actuel :
+                                                    <span className="font-bold ml-1">
+                                                        {subscriptions[0].plan.credit_type === 'unlimited' ? (
+                                                            'ILLIMITÉ'
+                                                        ) : subscriptions[0].voyage_credits_initial > 0 ? (
+                                                            `${subscriptions[0].voyage_credits_remaining} voyages`
+                                                        ) : (
+                                                            `${Number(subscriptions[0].legacy_credit_fcfa || 0).toLocaleString('fr-FR')} FCFA`
+                                                        )}
+                                                    </span>
                                                 </p>
                                                 <p className="text-xs text-ocean-600 mt-2 italic">
                                                     ⚠️ Le badge s'applique uniquement à votre billet (Passager 1)
@@ -513,22 +720,42 @@ export default function Booking() {
                                             <option value="">Ne pas utiliser de badge</option>
                                             {subscriptions.map(sub => (
                                                 <option key={sub.id} value={sub.id}>
-                                                    {sub.plan_name} - {parseFloat(sub.current_credit).toLocaleString('fr-FR')} FCFA
+                                                    {sub.plan_name} - {
+                                                        sub.plan.credit_type === 'unlimited' ? 'ILLIMITÉ' :
+                                                            sub.voyage_credits_initial > 0 ? `${sub.voyage_credits_remaining} voyages` :
+                                                                `${Number(sub.legacy_credit_fcfa || 0).toLocaleString('fr-FR')} FCFA`
+                                                    }
                                                 </option>
                                             ))}
                                         </select>
                                     )}
 
-                                    {selectedSubscriptionId && (
-                                        <div className="mt-4 p-4 bg-white rounded-xl border-2 border-green-200 animate-fade-in">
-                                            <p className="text-sm font-bold text-green-700">
-                                                ✓ Montant couvert : {(calculateTotal() - calculateAmountToPay()).toLocaleString()} FCFA
-                                            </p>
-                                            <p className="text-xs text-green-600 mt-1">
-                                                Solde après réservation : {(parseFloat(getSelectedSubscription()?.current_credit || 0) - (calculateTotal() - calculateAmountToPay())).toLocaleString('fr-FR')} FCFA
-                                            </p>
-                                        </div>
-                                    )}
+                                    {selectedSubscriptionId && (() => {
+                                        const sub = getSelectedSubscription();
+                                        if (!sub) return null;
+                                        const isUnlimited = sub.plan.credit_type === 'unlimited';
+                                        const isCounted = !isUnlimited && (sub.voyage_credits_initial || 0) > 0;
+
+                                        return (
+                                            <div className="mt-4 p-4 bg-white rounded-xl border-2 border-green-200 animate-fade-in">
+                                                <p className="text-sm font-bold text-green-700">
+                                                    ✓ Montant couvert : {(calculateTotal() - calculateAmountToPay()).toLocaleString()} FCFA
+                                                    {isCounted && (
+                                                        <span className="ml-2 bg-green-100 text-green-800 text-xs px-2 py-0.5 rounded-full">-1 Crédit Voyage</span>
+                                                    )}
+                                                </p>
+                                                {!isUnlimited && (
+                                                    <p className="text-xs text-green-600 mt-1">
+                                                        Solde après réservation : {
+                                                            isCounted ?
+                                                                `${Math.max(0, (sub.voyage_credits_remaining || 0) - 1)} voyages` :
+                                                                `${(Number(sub.legacy_credit_fcfa || 0) - (calculateTotal() - calculateAmountToPay())).toLocaleString('fr-FR')} FCFA`
+                                                        }
+                                                    </p>
+                                                )}
+                                            </div>
+                                        );
+                                    })()}
                                 </div>
                             )}
 
@@ -617,7 +844,18 @@ export default function Booking() {
                             <button onClick={prevStep} className="px-8 py-3 text-gray-600 font-bold hover:text-ocean-600 transition-all hover:scale-105">← Précédent</button>
                         )}
                         {currentStep < 4 && (
-                            <button onClick={nextStep} className="btn-primary px-12 py-4 ml-auto font-bold text-lg shadow-lg hover:shadow-xl transition-all">Continuer →</button>
+                            <button
+                                onClick={nextStep}
+                                disabled={isRegistering}
+                                className="btn-primary px-12 py-4 ml-auto font-bold text-lg shadow-lg hover:shadow-xl transition-all disabled:opacity-50"
+                            >
+                                {isRegistering ? (
+                                    <span className="flex items-center gap-2">
+                                        <svg className="animate-spin h-5 w-5 border-b-2 border-white rounded-full"></svg>
+                                        Création du compte...
+                                    </span>
+                                ) : 'Continuer →'}
+                            </button>
                         )}
                     </div>
                 </div>

@@ -37,7 +37,7 @@ class TripController extends Controller
             $query->where('status', 'scheduled');
         }
 
-        $query->where('departure_time', '>=', now()->subHours(1)) // Autoriser les trajets récents
+        $query->where('departure_time', '>', now()) // Afficher uniquement les trajets futurs
             ->with(['route.departurePort', 'route.arrivalPort', 'ship']);
 
         // Filtre par trajet

@@ -17,13 +17,17 @@ class Subscription extends Model
         'start_date',
         'end_date',
         'status',
-        'current_credit',
+        'legacy_credit_fcfa',
+        'voyage_credits_initial',
+        'voyage_credits_remaining',
     ];
 
     protected $casts = [
         'start_date' => 'date',
         'end_date' => 'date',
-        'current_credit' => 'decimal:2',
+        'legacy_credit_fcfa' => 'decimal:2',
+        'voyage_credits_initial' => 'integer',
+        'voyage_credits_remaining' => 'integer',
     ];
 
     public function user()
@@ -46,9 +50,22 @@ class Subscription extends Model
      */
     public function isActive(): bool
     {
+        // Si c'est un plan illimité (BADGE)
+        if ($this->plan && $this->plan->credit_type === 'unlimited') {
+            return $this->status === 'active' && $this->end_date >= now();
+        }
+
+        // Si c'est un plan à crédits (TICKET)
+        if ($this->voyage_credits_initial > 0) {
+            return $this->status === 'active' 
+                && $this->end_date >= now()
+                && $this->voyage_credits_remaining > 0;
+        }
+
+        // Fallback: Ancien système FCFA
         return $this->status === 'active' 
             && $this->end_date >= now()
-            && $this->current_credit > 0;
+            && $this->legacy_credit_fcfa > 0;
     }
 
     /**
@@ -68,23 +85,47 @@ class Subscription extends Model
             throw new \Exception("Solde d'abonnement insuffisant");
         }
 
-        $this->decrement('current_credit', $amount);
-
-        // Si le crédit tombe à 0 ou moins, on peut marquer comme expiré (ou laisser actif pour recharge)
-        // Ici on laisse actif tant que la date est valide, car 0 n'est pas forcément "fini" (on peut recharger ?)
-        // Mais la logique isActive vérifie > 0.
-        if ($this->fresh()->current_credit <= 0) {
-             // Optionnel : ne rien faire ou changer le statut
-        }
+        $this->decrement('legacy_credit_fcfa', $amount);
     }
 
     /**
      * Legacy Wrapper (Obsolète)
      */
-    public function canCoverTrips(int $count = 1): bool
+    /**
+     * Vérifie si l'abonnement peut couvrir un certain nombre de voyages
+     */
+    public function canCoverTrips(int $tripCount = 1): bool
     {
-        // Ne plus utiliser cette logique
+        if (!$this->plan) return false;
+
+        // Illimité
+        if ($this->plan->credit_type === 'unlimited') {
+            return $this->isActive();
+        }
+
+        // Système de crédits
+        if ($this->voyage_credits_initial > 0) {
+            return $this->isActive() && $this->voyage_credits_remaining >= $tripCount;
+        }
+
+        // Ancien système FCFA (ne supporte pas trip count, mais on peut imaginer)
         return false;
+    }
+
+    /**
+     * Déduit X crédits voyage
+     */
+    public function deductTripCredits(int $count = 1): void
+    {
+        if ($this->plan && $this->plan->credit_type === 'unlimited') {
+            return; // Rien à déduire
+        }
+
+        if (!$this->canCoverTrips($count)) {
+            throw new \Exception("Crédits voyage insuffisants");
+        }
+
+        $this->decrement('voyage_credits_remaining', $count);
     }
 
     /**
@@ -92,12 +133,21 @@ class Subscription extends Model
      */
     public static function getActiveForUser(int $userId): ?self
     {
-        return self::where('user_id', $userId)
+        // Simpification: on retourne le premier abonnement qui est "isActive()"
+        // Cela permet de gérer toute la logique complexe dans isActive()
+        $subscriptions = self::where('user_id', $userId)
             ->where('status', 'active')
             ->where('end_date', '>=', now())
-            ->where('current_credit', '>', 0)
             ->with('plan')
-            ->first();
+            ->get();
+
+        foreach ($subscriptions as $sub) {
+            if ($sub->isActive()) {
+                return $sub;
+            }
+        }
+
+        return null;
     }
 
     /**
@@ -105,12 +155,13 @@ class Subscription extends Model
      */
     public static function getAllActiveForUser(int $userId)
     {
-        return self::where('user_id', $userId)
+        $subscriptions = self::where('user_id', $userId)
             ->where('status', 'active')
             ->where('end_date', '>=', now())
-            ->where('current_credit', '>', 0)
             ->with('plan')
-            ->orderBy('current_credit', 'desc')
             ->get();
+        
+        // Filtrer via la méthode isActive() PHP pour être sûr
+        return $subscriptions->filter(fn($sub) => $sub->isActive());
     }
 }

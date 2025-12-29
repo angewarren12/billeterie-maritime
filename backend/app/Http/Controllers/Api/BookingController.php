@@ -132,7 +132,15 @@ class BookingController extends Controller
             'passenger_name_for_account' => 'nullable|string',
         ]);
 
-        if ($request->input('create_account') && \App\Models\User::where('email', $request->input('email'))->exists()) {
+
+        // Vérifier si un utilisateur est authentifié
+        $user = $request->user();
+        if (!$user && $request->bearerToken()) {
+            $user = auth('sanctum')->user();
+        }
+
+        // Ne vérifier l'existence de l'email QUE si l'utilisateur n'est PAS connecté ET veut créer un compte
+        if (!$user && $request->input('create_account') && \App\Models\User::where('email', $request->input('email'))->exists()) {
              return response()->json([
                 'message' => 'Un compte existe déjà avec cet email. Veuillez vous connecter.',
             ], 422);
@@ -140,6 +148,12 @@ class BookingController extends Controller
 
         // Vérifier disponibilité
         $trip = Trip::findOrFail($validated['trip_id']);
+        
+        if ($trip->departure_time <= now()) {
+            return response()->json([
+                'message' => 'Ce voyage a déjà commencé ou est déjà parti.',
+            ], 400);
+        }
         
         if ($trip->available_seats_pax < count($validated['passengers'])) {
             return response()->json([
@@ -216,24 +230,42 @@ class BookingController extends Controller
                 
                 // Si ce passager est couvert par l'abonnement
                 if ($index === $subscriptionPassIndex && $subscription) {
-                    // On vérifie le solde maintenent qu'on connait le prix
-                    if (!$subscription->canCoverAmount($ticketPrice)) {
-                         DB::rollBack();
-                         return response()->json([
-                             'error' => "Solde d'abonnement insuffisant pour couvrir le billet ({$ticketPrice} FCFA)"
-                         ], 400);
+                    
+                    // NOUVEAU SYSTÈME : Crédits Voyage (ou Illimité)
+                    if ($subscription->plan && in_array($subscription->plan->credit_type, ['unlimited', 'counted'])) {
+                        if (!$subscription->canCoverTrips(1)) {
+                             DB::rollBack();
+                             return response()->json([
+                                 'error' => "Crédits voyage insuffisants. Restants : {$subscription->voyage_credits_remaining}"
+                             ], 400);
+                        }
+                        // Marquer pour déduction de crédits
+                        $ticketsData[$index]['uses_subscription_credit'] = true;
+                    } 
+                    // ANCIEN SYSTÈME : Solde FCFA (Legacy)
+                    else {
+                        // On vérifie le solde maintenant qu'on connait le prix
+                        if (!$subscription->canCoverAmount($ticketPrice)) {
+                             DB::rollBack();
+                             return response()->json([
+                                 'error' => "Solde d'abonnement insuffisant pour couvrir le billet ({$ticketPrice} FCFA)"
+                             ], 400);
+                        }
+                        // Marquer pour déduction FCFA
+                        $ticketsData[$index]['uses_subscription_credit'] = false;
                     }
 
-                    $subscriptionDiscount = $ticketPrice; // Le montant débité de l'abo
+                    $subscriptionDiscount = $ticketPrice; // Le montant débité (valeur comptable)
                     $ticketPrice = 0; // Le client ne paie rien directement pour ce billet
                 }
 
                 $totalAmount += $ticketPrice;
                 $ticketsData[] = [
                     'passenger' => $passenger,
-                    'price' => $priceData['total'], // Prix réel du billet (avant réduction abo)
-                    'final_price' => $ticketPrice,  // Prix payé par le client (0 si abo)
-                    'paid_via_subscription' => ($index === $subscriptionPassIndex && $subscription)
+                    'price' => $priceData['total'], // Prix réel du billet
+                    'final_price' => $ticketPrice,  // Prix payé par le client
+                    'paid_via_subscription' => ($index === $subscriptionPassIndex && $subscription),
+                    'uses_subscription_credit' => ($index === $subscriptionPassIndex && $subscription) ? ($ticketsData[$index]['uses_subscription_credit'] ?? false) : false
                 ];
             }
 
@@ -248,7 +280,7 @@ class BookingController extends Controller
                 'user_id' => $userIdToSave,
                 'booking_reference' => strtoupper(\Illuminate\Support\Str::random(8)),
                 'total_amount' => $totalAmount,
-                'status' => 'confirmed', // Marqué comme confirmé après paiement (TODO: Gérer paiement asynchrone)
+                'status' => 'confirmed', // Marqué comme confirmé après paiement
             ]);
 
             // Créer les tickets
@@ -259,7 +291,7 @@ class BookingController extends Controller
                     'passenger_name' => $data['passenger']['name'],
                     'passenger_type' => $data['passenger']['type'],
                     'nationality_group' => $data['passenger']['nationality_group'],
-                    'price_paid' => $data['final_price'], // Ce que le client a payé (0 ou plein tarif)
+                    'price_paid' => $data['final_price'], // Ce que le client a payé
                     'status' => 'issued',
                     'qr_code_data' => 'TKT-' . strtoupper(\Illuminate\Support\Str::random(12)), // Unique placeholder
                 ]);
@@ -267,17 +299,26 @@ class BookingController extends Controller
 
             // Créer les transactions et débiter l'abonnement
             if ($subscription && $subscriptionDiscount > 0) {
+                $creditsUsed = collect($ticketsData)->where('uses_subscription_credit', true)->count();
+                $externalRef = 'SUB-' . $subscription->id;
+                
+                if ($creditsUsed > 0) {
+                    // Nouveau système : déduire crédits
+                    $subscription->deductTripCredits($creditsUsed);
+                    $externalRef .= '-CREDITS-' . $creditsUsed;
+                } else {
+                    // Ancien système : déduire montant
+                    $subscription->deductAmount($subscriptionDiscount);
+                }
+
                 // Transaction pour la partie abonnement (interne)
                 Transaction::create([
                     'booking_id' => $booking->id,
                     'amount' => $subscriptionDiscount,
                     'payment_method' => 'subscription',
                     'status' => 'completed',
-                    'external_reference' => 'SUB-' . $subscription->id,
+                    'external_reference' => $externalRef,
                 ]);
-                
-                // Déduire le montant du solde
-                $subscription->deductAmount($subscriptionDiscount);
             }
             
 

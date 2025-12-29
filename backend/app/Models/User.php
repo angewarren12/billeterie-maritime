@@ -25,8 +25,8 @@ class User extends Authenticatable implements FilamentUser
         'email',
         'password',
         'phone',
-        'nationality_group', // Remplace nationality
-        'passenger_type',    // Remplace type
+        'nationality_group',
+        'passenger_type',
         'document_number',
         'role',
         'photo_url',

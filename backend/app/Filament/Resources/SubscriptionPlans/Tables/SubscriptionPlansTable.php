@@ -18,11 +18,21 @@ class SubscriptionPlansTable
                 TextColumn::make('name')
                     ->searchable(),
                 TextColumn::make('price')
-                    ->money()
+                    ->money('XOF')
                     ->sortable(),
+                \Filament\Tables\Columns\TextColumn::make('credit_type')
+                    ->badge()
+                    ->color(fn ($state) => $state === 'unlimited' ? 'success' : 'primary')
+                    ->formatStateUsing(fn ($state) => $state === 'unlimited' ? 'ILLIMITÉ' : 'COMPTÉ'),
+                \Filament\Tables\Columns\TextColumn::make('voyage_credits')
+                    ->label('Crédits')
+                    ->formatStateUsing(fn ($state, $record) => 
+                        $record->credit_type === 'unlimited' ? '∞' : $state . ' voyages'
+                    ),
                 TextColumn::make('duration_days')
                     ->numeric()
-                    ->sortable(),
+                    ->sortable()
+                    ->suffix(' jours'),
                 IconColumn::make('is_active')
                     ->boolean(),
                 TextColumn::make('created_at')
