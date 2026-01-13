@@ -11,11 +11,24 @@ class Booking extends Model
     use HasFactory, HasUuids;
 
     protected $fillable = [
+        'trip_id',
         'user_id',
+        'cash_desk_id',
         'booking_reference',
         'total_amount',
         'status',
+        'cash_session_id',
     ];
+
+    public function cashDesk()
+    {
+        return $this->belongsTo(CashDesk::class);
+    }
+
+    public function cashSession()
+    {
+        return $this->belongsTo(CashSession::class);
+    }
 
     protected $casts = [
         'total_amount' => 'decimal:2',
@@ -34,5 +47,10 @@ class Booking extends Model
     public function transactions()
     {
         return $this->hasMany(Transaction::class);
+    }
+
+    public function trip()
+    {
+        return $this->belongsTo(Trip::class);
     }
 }

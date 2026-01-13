@@ -38,7 +38,12 @@ class SubscriptionController extends Controller
                 return [
                     'id' => $sub->id,
                     'plan_name' => $sub->plan->name,
-                    'current_credit' => $sub->current_credit,
+                    'plan' => $sub->plan,
+                    'legacy_credit_fcfa' => $sub->legacy_credit_fcfa,
+                    'voyage_credits_remaining' => $sub->voyage_credits_remaining,
+                    'voyage_credits_initial' => $sub->voyage_credits_initial,
+                    'rfid_card_id' => $sub->rfid_card_id,
+                    'start_date' => $sub->start_date->format('Y-m-d'),
                     'end_date' => $sub->end_date->format('Y-m-d'),
                     'status' => $sub->status,
                 ];
@@ -62,7 +67,11 @@ class SubscriptionController extends Controller
                 return [
                     'id' => $sub->id,
                     'plan_name' => $sub->plan->name,
-                    'current_credit' => $sub->current_credit,
+                    'plan' => $sub->plan,
+                    'legacy_credit_fcfa' => $sub->legacy_credit_fcfa,
+                    'voyage_credits_remaining' => $sub->voyage_credits_remaining,
+                    'voyage_credits_initial' => $sub->voyage_credits_initial,
+                    'rfid_card_id' => $sub->rfid_card_id,
                     'start_date' => $sub->start_date->format('Y-m-d'),
                     'end_date' => $sub->end_date->format('Y-m-d'),
                     'status' => $sub->status,

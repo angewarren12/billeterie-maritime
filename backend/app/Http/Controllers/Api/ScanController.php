@@ -28,10 +28,16 @@ class ScanController extends Controller
             'device_id' => 'nullable|integer'
         ]);
 
-        $result = $this->qrScanService->validateQrCode(
-            $validated['qr_data'],
-            $validated['device_id'] ?? null
-        );
+        $inputData = $validated['qr_data'];
+        $deviceId = $validated['device_id'] ?? null;
+
+        // Détection : Si le format commence par V1|, c'est un QR de ticket classique
+        if (str_starts_with($inputData, 'V1|')) {
+            $result = $this->qrScanService->validateQrCode($inputData, $deviceId);
+        } else {
+            // Sinon on tente une validation par RFID (MAR-... ou UID physique)
+            $result = $this->qrScanService->validateRfid($inputData, $deviceId);
+        }
 
         // Déterminer le code HTTP selon le résultat
         $statusCode = match($result['status']) {
@@ -156,5 +162,32 @@ class ScanController extends Controller
             'pending' => $passengers->where('status', 'issued')->count(),
             'passengers' => $passengers
         ]);
+    }
+    /**
+     * Forcer un passage (Superviseur)
+     * 
+     * POST /api/scan/bypass
+     */
+    public function bypass(Request $request): JsonResponse
+    {
+        // Vérification des droits (Superviseur uniquement)
+        // Note: Cette route doit être protégée par auth:sanctum et middleware role:supervisor/admin
+        if (!$request->user()->hasRole(['admin', 'supervisor'])) {
+            return response()->json(['message' => 'Non autorisé'], 403);
+        }
+
+        $validated = $request->validate([
+            'qr_data' => 'required|string',
+            'reason' => 'required|string',
+            'device_id' => 'nullable|integer'
+        ]);
+
+        $result = $this->qrScanService->forceValidateQrCode(
+            $validated['qr_data'],
+            $validated['reason'],
+            $validated['device_id']
+        );
+
+        return response()->json($result, $result['status'] === 'success' ? 200 : 400);
     }
 }

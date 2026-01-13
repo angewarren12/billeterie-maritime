@@ -79,7 +79,9 @@ class DummyDataSeeder extends Seeder
                     'start_date' => $startDate,
                     'end_date' => $startDate->copy()->addDays($plan->duration_days),
                     'status' => 'active',
-                    'current_credit' => 0,
+                    'legacy_credit_fcfa' => 0,
+                    'voyage_credits_initial' => 0,
+                    'voyage_credits_remaining' => 0,
                 ]);
             }
         }

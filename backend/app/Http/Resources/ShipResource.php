@@ -20,8 +20,6 @@ class ShipResource extends JsonResource
             'company' => $this->company,
             'type' => $this->type,
             'capacity_pax' => $this->capacity_pax,
-            'capacity_vehicles' => $this->capacity_vehicles,
-            'capacity_freight' => $this->capacity_freight,
             'is_active' => $this->is_active,
             'created_at' => $this->created_at,
             'updated_at' => $this->updated_at,

@@ -1,0 +1,27 @@
+{
+    "repository_type": "monorepo",
+    "project_type": "brownfield",
+    "parts": [
+        {
+            "part_id": "backend",
+            "project_type_id": "backend",
+            "root_path": "backend",
+            "technology": "Laravel",
+            "language": "PHP"
+        },
+        {
+            "part_id": "frontend",
+            "project_type_id": "web",
+            "root_path": "frontend",
+            "technology": "React",
+            "language": "TypeScript"
+        },
+        {
+            "part_id": "frontend-agent",
+            "project_type_id": "web",
+            "root_path": "frontend-agent",
+            "technology": "React",
+            "language": "TypeScript"
+        }
+    ]
+}

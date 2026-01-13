@@ -17,12 +17,13 @@ class QrCodeService
         $signature = hash_hmac('sha256', $ticket->id . $ticket->booking->booking_reference, config('app.key'));
         $shortSignature = substr($signature, 0, 8);
 
-        // Format: VERSION|TICKET_ID|BOOKING_REF|TRIP_ID|HASH
+        // Format: VERSION|TICKET_ID|BOOKING_REF|OUTWARD_ID|RETURN_ID|HASH
         return implode('|', [
-            'V1', // Version du format
+            'V2', // Version du format
             $ticket->id,
             $ticket->booking->booking_reference,
             $ticket->trip_id,
+            $ticket->return_trip_id ?? '',
             $shortSignature
         ]);
     }

@@ -30,7 +30,13 @@ class User extends Authenticatable implements FilamentUser
         'document_number',
         'role',
         'photo_url',
+        'cash_desk_id',
     ];
+
+    public function cashDesk()
+    {
+        return $this->belongsTo(CashDesk::class);
+    }
 
     /**
      * The attributes that should be hidden for serialization.

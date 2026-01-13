@@ -15,6 +15,7 @@ class AccessDevice extends Model
         'location',
         'type',
         'device_identifier',
+        'api_token',
     ];
 
     public function port()

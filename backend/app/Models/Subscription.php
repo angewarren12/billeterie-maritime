@@ -20,6 +20,8 @@ class Subscription extends Model
         'legacy_credit_fcfa',
         'voyage_credits_initial',
         'voyage_credits_remaining',
+        'is_delivered',
+        'delivered_at',
     ];
 
     protected $casts = [
@@ -28,6 +30,8 @@ class Subscription extends Model
         'legacy_credit_fcfa' => 'decimal:2',
         'voyage_credits_initial' => 'integer',
         'voyage_credits_remaining' => 'integer',
+        'is_delivered' => 'boolean',
+        'delivered_at' => 'datetime',
     ];
 
     public function user()
@@ -51,7 +55,7 @@ class Subscription extends Model
     public function isActive(): bool
     {
         // Si c'est un plan illimité (BADGE)
-        if ($this->plan && $this->plan->credit_type === 'unlimited') {
+        if ($this->plan && $this->plan->credit_type === SubscriptionPlan::TYPE_UNLIMITED) {
             return $this->status === 'active' && $this->end_date >= now();
         }
 
@@ -73,7 +77,7 @@ class Subscription extends Model
      */
     public function canCoverAmount(float $amount): bool
     {
-        return $this->isActive() && $this->current_credit >= $amount;
+        return $this->isActive() && $this->legacy_credit_fcfa >= $amount;
     }
 
     /**
@@ -99,7 +103,7 @@ class Subscription extends Model
         if (!$this->plan) return false;
 
         // Illimité
-        if ($this->plan->credit_type === 'unlimited') {
+        if ($this->plan->credit_type === SubscriptionPlan::TYPE_UNLIMITED) {
             return $this->isActive();
         }
 
@@ -117,8 +121,9 @@ class Subscription extends Model
      */
     public function deductTripCredits(int $count = 1): void
     {
+        // Sécurité : Ne jamais déduire de crédits sur un plan illimité
         if ($this->plan && $this->plan->credit_type === 'unlimited') {
-            return; // Rien à déduire
+            return;
         }
 
         if (!$this->canCoverTrips($count)) {

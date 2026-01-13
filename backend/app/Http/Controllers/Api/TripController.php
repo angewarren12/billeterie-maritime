@@ -63,8 +63,12 @@ class TripController extends Controller
         });
 
         return response()->json([
-            'trips' => $result,
-            'total' => $result->count()
+            'status' => 'success',
+            'message' => 'Voyages récupérés avec succès',
+            'data' => [
+                'trips' => $result,
+                'total' => $result->count()
+            ]
         ]);
     }
 
@@ -73,15 +77,23 @@ class TripController extends Controller
      */
     public function show(Trip $trip): JsonResponse
     {
+        // Charger TOUTES les relations nécessaires AVANT le cache
+        $trip->load([
+            'route.departurePort', 
+            'route.arrivalPort', 
+            'ship'
+        ]);
+        
         $cacheKey = "trip_details_{$trip->id}";
         
         $tripData = \Illuminate\Support\Facades\Cache::remember($cacheKey, 600, function () use ($trip) {
-            $trip->load(['route.departurePort', 'route.arrivalPort', 'ship']);
             return $this->formatTripResponse($trip, true);
         });
 
         return response()->json([
-            'trip' => $tripData
+            'status' => 'success',
+            'message' => 'Détails du voyage récupérés',
+            'data' => $tripData
         ]);
     }
 
@@ -109,7 +121,9 @@ class TripController extends Controller
 
             if (!$priceData['found']) {
                 return response()->json([
-                    'error' => $priceData['error']
+                    'status' => 'error',
+                    'message' => $priceData['error'],
+                    'data' => null
                 ], 400);
             }
 
@@ -124,11 +138,15 @@ class TripController extends Controller
         }
 
         return response()->json([
-            'route_id' => $validated['route_id'],
-            'passengers' => count($validated['passengers']),
-            'details' => $details,
-            'total_price' => $totalPrice,
-            'currency' => 'FCFA'
+            'status' => 'success',
+            'message' => 'Tarification calculée',
+            'data' => [
+                'route_id' => $validated['route_id'],
+                'passengers' => count($validated['passengers']),
+                'details' => $details,
+                'total_price' => $totalPrice,
+                'currency' => 'FCFA'
+            ]
         ]);
     }
 
@@ -145,6 +163,7 @@ class TripController extends Controller
             'route' => [
                 'id' => $trip->route->id,
                 'name' => $trip->route->name,
+                'duration_minutes' => $trip->route->duration_minutes,
                 'departure_port' => [
                     'name' => $trip->route->departurePort->name,
                     'code' => $trip->route->departurePort->code,
@@ -159,10 +178,14 @@ class TripController extends Controller
             'ship' => [
                 'id' => $trip->ship->id,
                 'name' => $trip->ship->name,
-                'capacity' => $trip->ship->capacity,
+                'capacity_pax' => $trip->ship->capacity_pax,
+                'type' => $trip->ship->type,
             ],
+            'available_seats_pax' => $trip->available_seats_pax,
             'capacity_remaining' => $trip->available_seats_pax,
             'availability' => $trip->available_seats_pax > 0 ? 'available' : 'full',
+            'base_price' => $this->getTripBasePrice($trip),
+            'pricing_settings' => $trip->pricing_settings,
         ];
 
         if ($detailed) {
@@ -171,5 +194,22 @@ class TripController extends Controller
         }
 
         return $data;
+    }
+
+    /**
+     * Extraire le prix de base d'un voyage
+     */
+    private function getTripBasePrice(Trip $trip): string
+    {
+        if (isset($trip->pricing_settings['categories'])) {
+            foreach ($trip->pricing_settings['categories'] as $category) {
+                if ($category['type'] === 'ADULT') {
+                    return (string) $category['price'];
+                }
+            }
+        }
+
+        // Fallback simple si pas de réglages spécifiques
+        return "1500";
     }
 }

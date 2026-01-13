@@ -29,15 +29,15 @@ class BookingController extends Controller
         $userId = $request->user()->id;
         $cacheKey = "user_bookings_{$userId}";
         
-        $result = \Illuminate\Support\Facades\Cache::remember($cacheKey, 300, function () use ($userId) {
-            $bookings = Booking::where('user_id', $userId)
-                ->with(['tickets.trip.route.departurePort', 'tickets.trip.route.arrivalPort', 'transactions'])
-                ->orderBy('created_at', 'desc')
-                ->limit(50) // Limiter à 50 dernières réservations
-                ->get();
-
+        // Charger les relations AVANT le cache
+        $bookings = Booking::where('user_id', $userId)
+            ->with(['trip.route.departurePort', 'trip.route.arrivalPort', 'tickets', 'transactions'])
+            ->orderBy('created_at', 'desc')
+            ->limit(50)
+            ->get();
+        
+        $result = \Illuminate\Support\Facades\Cache::remember($cacheKey, 300, function () use ($bookings) {
             return $bookings->map(function ($booking) {
-                $firstTicket = $booking->tickets->first();
                 return [
                     'id' => $booking->id,
                     'booking_reference' => $booking->booking_reference,
@@ -45,11 +45,11 @@ class BookingController extends Controller
                     'status' => $booking->status,
                     'tickets_count' => $booking->tickets->count(),
                     'created_at' => $booking->created_at->toIso8601String(),
-                    'trip' => $firstTicket ? [
-                        'departure_time' => $firstTicket->trip->departure_time,
-                        'route_name' => $firstTicket->trip->route->departurePort->name . ' → ' . $firstTicket->trip->route->arrivalPort->name,
-                        'departure_port' => $firstTicket->trip->route->departurePort->name,
-                        'arrival_port' => $firstTicket->trip->route->arrivalPort->name,
+                    'trip' => $booking->trip ? [
+                        'departure_time' => $booking->trip->departure_time,
+                        'route_name' => $booking->trip->route ? ($booking->trip->route->departurePort->name . ' → ' . $booking->trip->route->arrivalPort->name) : 'Trajet maritime',
+                        'departure_port' => $booking->trip->route->departurePort->name ?? '-',
+                        'arrival_port' => $booking->trip->route->arrivalPort->name ?? '-',
                     ] : null
                 ];
             });
@@ -69,6 +69,9 @@ class BookingController extends Controller
         if ($booking->user_id !== null) {
             $user = \Illuminate\Support\Facades\Auth::guard('sanctum')->user();
             if (!$user || $booking->user_id !== $user->id) {
+                // Allow admin to bypass this check? If admin uses this route.
+                // But admin has /admin/bookings/{id}.
+                // Let's just return 403.
                 return response()->json([
                     'message' => 'Accès non autorisé'
                 ], 403);
@@ -78,7 +81,7 @@ class BookingController extends Controller
         $booking->load(['tickets.trip.route.departurePort', 'tickets.trip.route.arrivalPort', 'tickets.trip.ship', 'transactions']);
 
         return response()->json([
-            'booking' => [
+            'data' => [
                 'id' => $booking->id,
                 'booking_reference' => $booking->booking_reference,
                 'total_amount' => $booking->total_amount,
@@ -93,15 +96,27 @@ class BookingController extends Controller
                         'price_paid' => $ticket->price_paid,
                         'status' => $ticket->status,
                         'qr_code_data' => $ticket->qr_code_data,
+                        'return_trip_id' => $ticket->return_trip_id,
                         'trip' => [
                             'departure_time' => $ticket->trip->departure_time->toIso8601String(),
-                            'route' => $ticket->trip->route->departurePort->name . ' → ' . $ticket->trip->route->arrivalPort->name,
-                            'ship' => $ticket->trip->ship->name,
+                            'route' => [
+                                'name' => $ticket->trip->route->departurePort->name . ' → ' . $ticket->trip->route->arrivalPort->name,
+                                'departure_port' => [
+                                    'name' => $ticket->trip->route->departurePort->name
+                                ],
+                                'arrival_port' => [
+                                    'name' => $ticket->trip->route->arrivalPort->name
+                                ]
+                            ],
+                            'ship' => [
+                                'name' => $ticket->trip->ship->name
+                            ],
                         ],
                     ];
                 }),
                 'transactions' => $booking->transactions->map(function ($transaction) {
                     return [
+                        'id' => $transaction->id,
                         'amount' => $transaction->amount,
                         'payment_method' => $transaction->payment_method,
                         'status' => $transaction->status,
@@ -119,6 +134,7 @@ class BookingController extends Controller
     {
         $validated = $request->validate([
             'trip_id' => 'required|exists:trips,id',
+            'return_trip_id' => 'nullable|exists:trips,id',
             'passengers' => 'required|array|min:1|max:10',
             'passengers.*.name' => 'required|string|max:255',
             'passengers.*.type' => 'required|in:adult,child,baby',
@@ -146,172 +162,228 @@ class BookingController extends Controller
             ], 422);
         }
 
-        // Vérifier disponibilité
-        $trip = Trip::findOrFail($validated['trip_id']);
-        
-        if ($trip->departure_time <= now()) {
-            return response()->json([
-                'message' => 'Ce voyage a déjà commencé ou est déjà parti.',
-            ], 400);
-        }
-        
-        if ($trip->available_seats_pax < count($validated['passengers'])) {
-            return response()->json([
-                'message' => 'Places insuffisantes',
-                'available' => $trip->available_seats_pax,
-                'requested' => count($validated['passengers'])
-            ], 400);
-        }
-
         try {
             DB::beginTransaction();
 
-            $user = $request->user();
+            // Verrouillage pessimiste pour éviter la sur-réservation
+            $trip = Trip::where('id', $validated['trip_id'])->lockForUpdate()->firstOrFail();
+            
+            $returnTripId = $validated['return_trip_id'] ?? null;
+            $returnTrip = null;
+            if ($returnTripId) {
+                // Pour éviter le deadlock, on trie les IDs si on devait verrouiller plusieurs ressources, 
+                // mais ici c'est séquentiel simple.
+                $returnTrip = Trip::where('id', $returnTripId)->lockForUpdate()->firstOrFail();
+            }
 
-            // Si la route est publique, $request->user() peut être null même avec un token.
-            // On tente de récupérer l'utilisateur via Sanctum explicitement.
+            if ($trip->departure_time <= now()) {
+                DB::rollBack();
+                return response()->json([
+                    'message' => 'Ce voyage a déjà commencé ou est déjà parti.',
+                ], 400);
+            }
+            
+            if ($trip->available_seats_pax < count($validated['passengers'])) {
+                DB::rollBack();
+                return response()->json([
+                    'message' => "Places insuffisantes pour l'aller",
+                    'available' => $trip->available_seats_pax,
+                    'requested' => count($validated['passengers'])
+                ], 400);
+            }
+
+            if ($returnTrip && $returnTrip->available_seats_pax < count($validated['passengers'])) {
+                DB::rollBack();
+                return response()->json([
+                    'message' => "Places insuffisantes pour le retour",
+                    'available' => $returnTrip->available_seats_pax,
+                    'requested' => count($validated['passengers'])
+                ], 400);
+            }
+
             if (!$user && $request->bearerToken()) {
                  $user = auth('sanctum')->user();
+            }
+
+            // Support pour admin qui réserve pour un client
+            if ($user && $user->role === 'admin' && $request->has('user_id')) {
+                $targetUser = \App\Models\User::find($request->user_id);
+                if ($targetUser) {
+                    $user = $targetUser;
+                }
             }
 
             // Création de compte à la volée
             if (!$user && $request->input('create_account')) {
                 $user = \App\Models\User::create([
-                    'name' => $request->input('passenger_name_for_account') ?? $validated['passengers'][0]['name'], // Utilise le nom du premier passager ou le nom fourni
+                    'name' => $request->input('passenger_name_for_account') ?? $validated['passengers'][0]['name'],
                     'email' => $request->input('email'),
                     'password' => \Illuminate\Support\Facades\Hash::make($request->input('password')),
                     'phone' => $request->input('phone'),
                     'role' => 'client',
                 ]);
                 $user->assignRole('client');
-                // TODO: Envoyer email de bienvenue / vérification
             }
 
             // Vérifier l'abonnement si demandé
             $subscription = null;
-            
             if ($request->has('subscription_id') && $user) {
-                $subscription = \App\Models\Subscription::find($validated['subscription_id']);
-                
-                // Vérifier que l'abonnement appartient à l'utilisateur
+                $subscription = \App\Models\Subscription::where('id', $validated['subscription_id'] ?? null)
+                    ->lockForUpdate() // Verrouiller aussi l'abonnement
+                    ->first();
+                    
                 if (!$subscription || $subscription->user_id !== $user->id) {
                     DB::rollBack();
-                    return response()->json([
-                        'error' => 'Abonnement non autorisé'
-                    ], 403);
+                    return response()->json(['error' => 'Abonnement non autorisé'], 403);
                 }
             }
 
-            // Calculer d'abord le prix pour tous les passagers
+            // Calculer d'abord le prix pour tous les passagers (Aller + Retour)
             $totalAmount = 0;
             $subscriptionDiscount = 0;
             $ticketsData = [];
-            $subscriptionPassIndex = -1; // Index du passager couvert par l'abonnement (par défaut aucun)
-
-            // On identifie qui est couvert par l'abonnement (par défaut le premier passager, qui est le titulaire)
-            // TODO: Permettre de choisir quel passager est couvert si nécessaire
-            if ($subscription) {
-                $subscriptionPassIndex = 0;
-            }
+            $subscriptionPassIndex = ($subscription) ? 0 : -1;
+            
+            // On crée un objet temporaire pour simuler les déductions
+            // NOTE: Avec le lock, on peut modifier directement l'objet subscription chargé, 
+            // mais on garde la logique de calcul séparée avant validation finale.
+            $tempSubscription = $subscription ? clone $subscription : null;
 
             foreach ($validated['passengers'] as $index => $passenger) {
-                $priceData = $this->pricingService->calculatePrice(
-                    $trip->route_id,
-                    $passenger['type'],
-                    $passenger['nationality_group']
-                );
+                $priceOut = ['total' => 0, 'found' => false];
+                $priceIn = ['total' => 0, 'found' => false];
 
-                if (!$priceData['found']) {
-                    DB::rollBack();
-                    return response()->json(['error' => $priceData['error']], 400);
+                // Prix Aller - Priorité au voyage
+                $tripOutPrice = $this->findPriceInTrip($trip, $passenger['type'], $passenger['nationality_group']);
+                
+                if ($tripOutPrice !== null) {
+                    $ticketPrice = $tripOutPrice;
+                    $priceOut['total'] = $tripOutPrice; // Pour le calcul final_price plus bas
+                } else {
+                    $priceOut = $this->pricingService->calculatePrice(
+                        $trip->route_id,
+                        $passenger['type'],
+                        $passenger['nationality_group']
+                    );
+                    
+                    if (!$priceOut['found']) {
+                        DB::rollBack();
+                        return response()->json(['error' => "Aller: " . $priceOut['error']], 400);
+                    }
+                    $ticketPrice = $priceOut['total'];
                 }
 
-                $ticketPrice = $priceData['total'];
-                
-                // Si ce passager est couvert par l'abonnement
-                if ($index === $subscriptionPassIndex && $subscription) {
-                    
-                    // NOUVEAU SYSTÈME : Crédits Voyage (ou Illimité)
-                    if ($subscription->plan && in_array($subscription->plan->credit_type, ['unlimited', 'counted'])) {
-                        if (!$subscription->canCoverTrips(1)) {
-                             DB::rollBack();
-                             return response()->json([
-                                 'error' => "Crédits voyage insuffisants. Restants : {$subscription->voyage_credits_remaining}"
-                             ], 400);
+                // Prix Retour (si applicable) - Priorité au voyage retour
+                if ($returnTrip) {
+                    $tripInPrice = $this->findPriceInTrip($returnTrip, $passenger['type'], $passenger['nationality_group']);
+                    if ($tripInPrice !== null) {
+                        $ticketPrice += $tripInPrice;
+                        $priceIn['total'] = $tripInPrice; // Pour le calcul final_price plus bas
+                    } else {
+                        $priceIn = $this->pricingService->calculatePrice(
+                            $returnTrip->route_id,
+                            $passenger['type'],
+                            $passenger['nationality_group']
+                        );
+                        if (!$priceIn['found']) {
+                            DB::rollBack();
+                            return response()->json(['error' => "Retour: " . $priceIn['error']], 400);
                         }
-                        // Marquer pour déduction de crédits
-                        $ticketsData[$index]['uses_subscription_credit'] = true;
-                    } 
-                    // ANCIEN SYSTÈME : Solde FCFA (Legacy)
-                    else {
-                        // On vérifie le solde maintenant qu'on connait le prix
-                        if (!$subscription->canCoverAmount($ticketPrice)) {
-                             DB::rollBack();
-                             return response()->json([
-                                 'error' => "Solde d'abonnement insuffisant pour couvrir le billet ({$ticketPrice} FCFA)"
-                             ], 400);
-                        }
-                        // Marquer pour déduction FCFA
-                        $ticketsData[$index]['uses_subscription_credit'] = false;
+                        $ticketPrice += $priceIn['total'];
                     }
+                }
+                
+                // Déterminer si ce passager peut utiliser l'abonnement
+                $canUseSubscription = false;
+                if ($tempSubscription) {
+                    if ($tempSubscription->plan->allow_multi_passenger) {
+                        $canUseSubscription = true;
+                    } elseif ($index === 0) {
+                        // Uniquement le titulaire si multi-passager non autorisé
+                        $canUseSubscription = true;
+                    }
+                }
 
-                    $subscriptionDiscount = $ticketPrice; // Le montant débité (valeur comptable)
-                    $ticketPrice = 0; // Le client ne paie rien directement pour ce billet
+                // Si ce passager est couvert par l'abonnement
+                if ($canUseSubscription) {
+                    $isRoundTrip = (bool)$returnTrip;
+                    $creditsNeeded = $isRoundTrip ? 2 : 1;
+
+                    if ($tempSubscription->plan && in_array($tempSubscription->plan->credit_type, ['unlimited', 'counted'])) {
+                        if ($tempSubscription->canCoverTrips($creditsNeeded)) {
+                            $ticketsData[$index]['uses_subscription_credit'] = true;
+                            $ticketsData[$index]['credits_to_deduct'] = $creditsNeeded;
+                            $subscriptionDiscount += $ticketPrice;
+                            $ticketPrice = 0;
+                            // On déduit virtuellement pour le prochain passager de la boucle
+                            if ($tempSubscription->plan->credit_type === 'counted') {
+                                $tempSubscription->voyage_credits_remaining -= $creditsNeeded;
+                            }
+                        } else {
+                            // If subscription cannot cover, it means it's insufficient, so this passenger pays full price.
+                            // No need to rollback here, just proceed with full price.
+                        }
+                    } 
+                    else {
+                        if ($tempSubscription->canCoverAmount($ticketPrice)) {
+                            $ticketsData[$index]['uses_subscription_credit'] = false;
+                            $subscriptionDiscount += $ticketPrice;
+                            $priceUsed = $ticketPrice;
+                            $ticketPrice = 0;
+                            // On déduit virtuellement pour le prochain passager de la boucle
+                            $tempSubscription->legacy_credit_fcfa -= $priceUsed;
+                        } else {
+                            // If subscription cannot cover, it means it's insufficient, so this passenger pays full price.
+                        }
+                    }
                 }
 
                 $totalAmount += $ticketPrice;
-                $ticketsData[] = [
-                    'passenger' => $passenger,
-                    'price' => $priceData['total'], // Prix réel du billet
-                    'final_price' => $ticketPrice,  // Prix payé par le client
-                    'paid_via_subscription' => ($index === $subscriptionPassIndex && $subscription),
-                    'uses_subscription_credit' => ($index === $subscriptionPassIndex && $subscription) ? ($ticketsData[$index]['uses_subscription_credit'] ?? false) : false
-                ];
+                $ticketsData[$index]['passenger'] = $passenger;
+                $ticketsData[$index]['price'] = $priceOut['total'] + ($returnTrip ? $priceIn['total'] : 0);
+                $ticketsData[$index]['final_price'] = $ticketPrice;
+                $ticketsData[$index]['paid_via_subscription'] = ($ticketPrice === 0 && $subscription);
+                $ticketsData[$index]['uses_subscription_credit'] = $ticketsData[$index]['uses_subscription_credit'] ?? false;
+                $ticketsData[$index]['credits_to_deduct'] = $ticketsData[$index]['credits_to_deduct'] ?? 0;
             }
 
-            // Créer la réservation
-            // CRITICAL: On force l'utilisation de l'ID utilisateur s'il est disponible
-            $userIdToSave = null;
-            if ($user && isset($user->id)) {
-                $userIdToSave = $user->id;
-            }
+            $userIdToSave = ($user && isset($user->id)) ? $user->id : null;
 
             $booking = Booking::create([
                 'user_id' => $userIdToSave,
+                'trip_id' => $trip->id,
                 'booking_reference' => strtoupper(\Illuminate\Support\Str::random(8)),
                 'total_amount' => $totalAmount,
-                'status' => 'confirmed', // Marqué comme confirmé après paiement
+                'status' => 'confirmed',
             ]);
 
-            // Créer les tickets
+            // Créer les tickets (un seul ticket par passager, même en aller-retour)
             foreach ($ticketsData as $data) {
                 Ticket::create([
                     'booking_id' => $booking->id,
                     'trip_id' => $trip->id,
+                    'return_trip_id' => $returnTrip ? $returnTrip->id : null,
                     'passenger_name' => $data['passenger']['name'],
                     'passenger_type' => $data['passenger']['type'],
                     'nationality_group' => $data['passenger']['nationality_group'],
-                    'price_paid' => $data['final_price'], // Ce que le client a payé
+                    'price_paid' => $data['final_price'],
                     'status' => 'issued',
-                    'qr_code_data' => 'TKT-' . strtoupper(\Illuminate\Support\Str::random(12)), // Unique placeholder
+                    'qr_code_data' => 'TKT-' . strtoupper(\Illuminate\Support\Str::random(12)),
                 ]);
             }
 
-            // Créer les transactions et débiter l'abonnement
+            // Gérer les transactions et l'abonnement
             if ($subscription && $subscriptionDiscount > 0) {
-                $creditsUsed = collect($ticketsData)->where('uses_subscription_credit', true)->count();
+                $totalCreditsUsed = collect($ticketsData)->sum('credits_to_deduct');
                 $externalRef = 'SUB-' . $subscription->id;
                 
-                if ($creditsUsed > 0) {
-                    // Nouveau système : déduire crédits
-                    $subscription->deductTripCredits($creditsUsed);
-                    $externalRef .= '-CREDITS-' . $creditsUsed;
+                if ($totalCreditsUsed > 0) {
+                    $subscription->deductTripCredits($totalCreditsUsed);
+                    $externalRef .= '-CREDITS-' . $totalCreditsUsed;
                 } else {
-                    // Ancien système : déduire montant
                     $subscription->deductAmount($subscriptionDiscount);
                 }
 
-                // Transaction pour la partie abonnement (interne)
                 Transaction::create([
                     'booking_id' => $booking->id,
                     'amount' => $subscriptionDiscount,
@@ -321,9 +393,6 @@ class BookingController extends Controller
                 ]);
             }
             
-
-            
-            // Transaction pour le paiement classique (si montant > 0)
             $classicTransaction = null;
             if ($totalAmount > 0) {
                 $classicTransaction = Transaction::create([
@@ -335,14 +404,29 @@ class BookingController extends Controller
                 ]);
             }
 
-            // Réduire la capacité
+            // Réduire la capacité pour les deux trajets
             $trip->decrement('available_seats_pax', count($validated['passengers']));
+            if ($returnTrip) {
+                $returnTrip->decrement('available_seats_pax', count($validated['passengers']));
+            }
 
             DB::commit();
 
             // Invalider le cache des réservations de l'utilisateur
             if ($user && isset($user->id)) {
                 \Illuminate\Support\Facades\Cache::forget("user_bookings_{$user->id}");
+            }
+
+            // Envoi de l'email de confirmation
+            $recipientEmail = $request->input('email') ?? ($user ? $user->email : null);
+            if ($recipientEmail) {
+                try {
+                    // On charge les relations nécessaires pour l'email
+                    $booking->load(['trip.route.departurePort', 'trip.route.arrivalPort', 'trip.ship', 'tickets']);
+                    \Illuminate\Support\Facades\Mail::to($recipientEmail)->queue(new \App\Mail\BookingConfirmed($booking));
+                } catch (\Exception $e) {
+                    \Illuminate\Support\Facades\Log::error("Erreur envoi email booking {$booking->id}: " . $e->getMessage());
+                }
             }
 
             $token = null;
@@ -378,10 +462,14 @@ class BookingController extends Controller
         } catch (\Exception $e) {
             DB::rollBack();
             
+            \Illuminate\Support\Facades\Log::error('Erreur réservation: ' . $e->getMessage(), [
+                'trace' => $e->getTraceAsString(),
+                'user_id' => $user ? $user->id : 'guest',
+                'data' => $validated
+            ]);
+
             return response()->json([
-                'message' => 'Erreur lors de la création de la réservation',
-                'error' => $e->getMessage(),
-                'trace' => config('app.debug') ? $e->getTraceAsString() : null
+                'message' => 'Une erreur est survenue lors du traitement de votre réservation. Veuillez réessayer.',
             ], 500);
         }
 }
@@ -394,7 +482,7 @@ class BookingController extends Controller
         // Vérification de sécurité (Propriétaire ou Admin)
         $user = \Illuminate\Support\Facades\Auth::guard('sanctum')->user();
         if ($booking->user_id !== null) {
-            if (!$user || ($booking->user_id !== $user->id && !$user->hasRole('admin'))) {
+            if (!$user || ($booking->user_id !== $user->id && $user->role !== 'admin')) {
                 return response()->json(['message' => 'Non autorisé'], 403);
             }
         }
@@ -432,7 +520,126 @@ class BookingController extends Controller
             ->firstOrFail();
 
         return response()->json([
-            'booking' => $booking
+            'data' => $booking
         ]);
+    }
+
+    /**
+     * Tente de trouver un prix dans les réglages spécifiques du voyage
+     */
+    private function findPriceInTrip(Trip $trip, string $type, string $nationality): ?float
+    {
+        $settings = $trip->pricing_settings;
+        if (!$settings || !isset($settings['categories'])) {
+            return null;
+        }
+
+        $type = strtoupper($type); // adult -> ADULT
+        if ($type === 'BABY') $type = 'CHILD';
+
+        foreach ($settings['categories'] as $category) {
+            if ($category['type'] === $type) {
+                $name = strtolower($category['name']);
+                
+                // Matching par mots clés
+                if ($nationality === 'national' || $nationality === 'resident') {
+                    if (str_contains($name, 'sénégal') || str_contains($name, 'national') || str_contains($name, 'résident')) {
+                        return (float) $category['price'];
+                    }
+                } elseif ($nationality === 'african') {
+                    if (str_contains($name, 'afrique')) {
+                        return (float) $category['price'];
+                    }
+                } elseif ($nationality === 'hors_afrique') {
+                    if (str_contains($name, 'non résident') || str_contains($name, 'international') || str_contains($name, 'hors')) {
+                        return (float) $category['price'];
+                    }
+                }
+            }
+        }
+
+        // Deuxième passe: premier match par type si rien trouvé de spécifique
+        foreach ($settings['categories'] as $category) {
+            if ($category['type'] === $type) {
+                return (float) $category['price'];
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * Annuler une réservation
+     */
+    public function cancel(Request $request, Booking $booking): JsonResponse
+    {
+        // 1. Vérification des droits
+        $user = $request->user();
+        if ($booking->user_id !== $user->id && $user->role !== 'admin') {
+             return response()->json(['message' => 'Non autorisé'], 403);
+        }
+
+        // 2. Vérification statut
+        if ($booking->status === 'cancelled') {
+             return response()->json(['message' => 'Réservation déjà annulée'], 400);
+        }
+
+        // Ne pas annuler si le voyage est passé (sauf admin ?)
+        // On charge le voyage pour vérifier
+        $trip = $booking->trip;
+        if ($trip && $trip->departure_time <= now() && $user->role !== 'admin') {
+             return response()->json(['message' => 'Impossible d\'annuler un voyage passé ou en cours'], 400);
+        }
+
+        try {
+            DB::beginTransaction();
+
+            // Verrouiller le trip pour mettre à jour la capacité
+            // Note: On recharge le trip avec lock
+            $tripLocked = Trip::where('id', $booking->trip_id)->lockForUpdate()->first();
+
+            // Mettre à jour le statut
+            $booking->update(['status' => 'cancelled']);
+            $booking->tickets()->update(['status' => 'cancelled']);
+
+            // Restaurer la capacité
+            // On compte combien de tickets étaient valides
+            $seatsToRestore = $booking->tickets->count();
+            
+            if ($tripLocked) {
+                $tripLocked->increment('available_seats_pax', $seatsToRestore);
+            }
+            
+            // Si retour, restaurer aussi (si c'était un A/R)
+            $uniqueReturnTripIds = $booking->tickets->pluck('return_trip_id')->filter()->unique();
+            foreach ($uniqueReturnTripIds as $rId) {
+                $rTrip = Trip::where('id', $rId)->lockForUpdate()->first();
+                if ($rTrip) {
+                    $count = $booking->tickets->where('return_trip_id', $rId)->count();
+                    $rTrip->increment('available_seats_pax', $count);
+                }
+            }
+
+            // Gestion du remboursement (Simulé ici)
+            Transaction::create([
+                'booking_id' => $booking->id,
+                'amount' => -$booking->total_amount,
+                'payment_method' => 'system', // Refund
+                'status' => 'pending', // A traiter manuellement ou job async
+                'external_reference' => 'REF-' . strtoupper(\Illuminate\Support\Str::random(10)),
+            ]);
+
+            DB::commit();
+
+            return response()->json([
+                'message' => 'Réservation annulée avec succès',
+                'status' => 'cancelled'
+            ]);
+
+        } catch (\Exception $e) {
+            DB::rollBack();
+            \Illuminate\Support\Facades\Log::error('Erreur annulation: ' . $e->getMessage());
+            return response()->json(['message' => 'Erreur lors de l\'annulation'], 500);
+        }
     }
 }

@@ -17,15 +17,16 @@ class Trip extends Model
         'arrival_time',
         'status',
         'available_seats_pax',
-        'available_slots_vehicles',
         'images',
         'description',
+        'pricing_settings',
     ];
 
     protected $casts = [
         'departure_time' => 'datetime',
         'arrival_time' => 'datetime',
         'images' => 'json',
+        'pricing_settings' => 'array',
     ];
 
     public function route()
@@ -41,5 +42,10 @@ class Trip extends Model
     public function tickets()
     {
         return $this->hasMany(Ticket::class);
+    }
+
+    public function bookings()
+    {
+        return $this->hasMany(Booking::class);
     }
 }

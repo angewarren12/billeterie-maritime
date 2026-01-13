@@ -20,6 +20,8 @@ class Route extends Model
         'is_active' => 'boolean',
     ];
 
+    protected $appends = ['name'];
+
     public function departurePort()
     {
         return $this->belongsTo(Port::class, 'departure_port_id');
@@ -28,6 +30,17 @@ class Route extends Model
     public function arrivalPort()
     {
         return $this->belongsTo(Port::class, 'arrival_port_id');
+    }
+
+    /**
+     * Get the route name (e.g., "Dakar - Gorée")
+     */
+    public function getNameAttribute()
+    {
+        if ($this->departurePort && $this->arrivalPort) {
+            return $this->departurePort->name . ' - ' . $this->arrivalPort->name;
+        }
+        return 'Route #' . $this->id;
     }
 
     public function trips()

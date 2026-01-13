@@ -33,7 +33,6 @@ class MaritimeSeeder extends Seeder
             'company' => ' Liaison Maritime Dakar-Gorée',
             'type' => 'ferry',
             'capacity_pax' => 350,
-            'capacity_vehicles' => 0,
             'is_active' => true,
         ]);
 
@@ -42,7 +41,6 @@ class MaritimeSeeder extends Seeder
             'company' => ' Liaison Maritime Dakar-Gorée',
             'type' => 'ferry',
             'capacity_pax' => 150,
-            'capacity_vehicles' => 0,
             'is_active' => true,
         ]);
 
@@ -100,15 +98,37 @@ class MaritimeSeeder extends Seeder
 
         // 5. Subscription Plans
         \App\Models\SubscriptionPlan::create([
-            'name' => 'Mensuel Classique',
+            'name' => 'Badge Mensuel Illimité',
             'price' => 30000,
             'duration_days' => 30,
+            'period' => 'MENSUEL',
+            'category' => 'BADGE',
+            'credit_type' => 'unlimited',
+            'allow_multi_passenger' => false,
+            'features' => ['Traversées illimitées', 'Accès prioritaire'],
         ]);
 
         \App\Models\SubscriptionPlan::create([
-            'name' => 'Annuel Gold',
-            'price' => 300000,
+            'name' => 'Pass 10 Voyages',
+            'price' => 12000,
+            'duration_days' => 90,
+            'period' => 'MENSUEL',
+            'category' => 'BADGE',
+            'credit_type' => 'counted',
+            'voyage_credits' => 10,
+            'allow_multi_passenger' => true,
+            'features' => ['10 voyages inclus', 'Valable 3 mois', 'Multi-accès autorisé'],
+        ]);
+
+        \App\Models\SubscriptionPlan::create([
+            'name' => 'Pass Annuel Résident',
+            'price' => 250000,
             'duration_days' => 365,
+            'period' => 'ANNUEL',
+            'category' => 'BADGE',
+            'credit_type' => 'unlimited',
+            'allow_multi_passenger' => false,
+            'features' => ['Illimité', 'Service premium', 'Bagage gratuit'],
         ]);
 
         // 6. Access Devices

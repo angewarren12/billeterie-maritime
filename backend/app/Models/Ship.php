@@ -14,13 +14,14 @@ class Ship extends Model
         'company',
         'type',
         'capacity_pax',
-        'capacity_vehicles',
-        'capacity_freight',
         'is_active',
+        'images',
+        'description',
     ];
 
     protected $casts = [
         'is_active' => 'boolean',
+        'images' => 'json',
     ];
 
     public function trips()

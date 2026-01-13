@@ -14,6 +14,10 @@ use Illuminate\Support\Facades\Route;
 |--------------------------------------------------------------------------
 */
 
+Route::get('/fast-ping', function () {
+    return 'pong';
+});
+
 // Health Check
 Route::get('/health', function () {
     return response()->json([
@@ -31,8 +35,12 @@ Route::get('/public/booking/{reference}', [BookingController::class, 'showPublic
 // ROUTES PUBLIQUES (Sans auth)
 // =============================
 
+// Hardware Device Scans (Fixed Turnstiles)
+Route::post('/device/scan', [App\Http\Controllers\Api\DeviceScanController::class, 'validate']);
+
 // Authentification
-Route::prefix('auth')->group(function () {
+// Authentification - Rate limited
+Route::middleware('throttle:10,1')->prefix('auth')->group(function () {
     Route::post('/register', [AuthController::class, 'register']);
     Route::post('/login', [AuthController::class, 'login']);
 });
@@ -52,13 +60,15 @@ Route::prefix('trips')->group(function () {
 // Calcul de prix
 Route::post('/pricing', [TripController::class, 'pricing']);
 
-// QR Code Validation (public pour les agents avec appareils non authentifiés)
-Route::prefix('scan')->group(function () {
+// QR Code Validation (Protégé par Auth)
+Route::middleware('auth:sanctum')->prefix('scan')->group(function () {
     Route::post('/validate', [ScanController::class, 'validate']);
     Route::get('/statistics', [ScanController::class, 'statistics']);
     Route::post('/sync', [ScanController::class, 'sync']);
     Route::get('/trip/{trip}/passengers', [ScanController::class, 'tripPassengers']);
+    Route::post('/bypass', [ScanController::class, 'bypass'])->middleware('throttle:10,1');
 });
+
 
 // =============================
 // ROUTES PROTÉGÉES (Auth required)
@@ -80,7 +90,7 @@ Route::middleware('auth:sanctum')->group(function () {
     // Réservations
     Route::prefix('bookings')->group(function () {
         Route::get('/', [BookingController::class, 'index']);
-        // Route::post('/', [BookingController::class, 'store']); // Déplacé en public pour les invités
+        Route::post('/{booking}/cancel', [BookingController::class, 'cancel']);
     });
 
     // Abonnements
@@ -96,8 +106,69 @@ Route::get('/bookings/{booking}', [BookingController::class, 'show']);
 Route::get('/bookings/{booking}/pdf', [BookingController::class, 'downloadPdf']);
 
 // Badges & Abonnements
-Route::get('/badges/plans', [App\Http\Controllers\Api\BadgeController::class, 'index']);
 Route::middleware('auth:sanctum')->group(function () {
     Route::get('/badges/my-subscription', [App\Http\Controllers\Api\BadgeController::class, 'mySubscription']);
     Route::post('/badges/subscribe', [App\Http\Controllers\Api\BadgeController::class, 'subscribe']);
+    Route::get('/badges/plans', [App\Http\Controllers\Api\BadgeController::class, 'plans']);
+});
+
+// =============================
+// ADMIN API ROUTES
+// =============================
+// =============================
+// ADMIN API ROUTES
+// =============================
+Route::prefix('admin')->middleware(['auth:sanctum'])->group(function () {
+
+    // 1. GLOBAL MANAGEMENT (Super Admin, Admin, Manager)
+    Route::middleware(['role:super_admin|admin|manager'])->group(function () {
+        Route::get('dashboard/stats', [\App\Http\Controllers\Api\Admin\DashboardController::class, 'stats']);
+        
+        Route::apiResource('trips', \App\Http\Controllers\Api\Admin\TripController::class);
+        Route::post('trips/batch', [\App\Http\Controllers\Api\Admin\TripController::class, 'batchStore']);
+        
+        Route::apiResource('ports', \App\Http\Controllers\Api\PortController::class);
+        Route::apiResource('ships', \App\Http\Controllers\Api\Admin\ShipController::class);
+        Route::apiResource('routes', \App\Http\Controllers\Api\Admin\RouteController::class);
+        
+        Route::apiResource('cash-desks', \App\Http\Controllers\Api\Admin\CashDeskController::class);
+        Route::post('cash-desks/{cashDesk}/assign', [\App\Http\Controllers\Api\Admin\CashDeskController::class, 'assign']);
+        Route::post('users/{user}/unassign-cash-desk', [\App\Http\Controllers\Api\Admin\CashDeskController::class, 'unassign']);
+        
+        Route::apiResource('subscription-plans', \App\Http\Controllers\Api\Admin\SubscriptionPlanController::class);
+        Route::apiResource('subscriptions', \App\Http\Controllers\Api\Admin\SubscriptionController::class);
+        Route::post('subscriptions/{subscription}/associate-rfid', [\App\Http\Controllers\Api\Admin\SubscriptionController::class, 'associateRfid']);
+        Route::put('subscriptions/{subscription}/status', [\App\Http\Controllers\Api\Admin\SubscriptionController::class, 'updateStatus']);
+        Route::post('subscriptions/{subscription}/deliver', [\App\Http\Controllers\Api\Admin\SubscriptionController::class, 'deliver']);
+        
+        Route::apiResource('users', \App\Http\Controllers\Api\Admin\UserController::class)->only(['index', 'show', 'store']);
+    });
+
+    // 2. POS OPERATIONS (Super Admin, Admin, Manager, Guichetier)
+    Route::middleware(['role:super_admin|admin|manager|guichetier'])->group(function () {
+        Route::post('pos/sale', [\App\Http\Controllers\Api\Admin\PosController::class, 'sale']);
+        Route::get('pos/customers', [\App\Http\Controllers\Api\Admin\PosController::class, 'searchCustomer']);
+        Route::post('pos/session/start', [\App\Http\Controllers\Api\Admin\PosController::class, 'startSession']);
+        Route::post('pos/session/close', [\App\Http\Controllers\Api\Admin\PosController::class, 'closeSession']);
+        Route::get('pos/session/status', [\App\Http\Controllers\Api\Admin\PosController::class, 'sessionStatus']);
+        Route::post('pos/subscription/sale', [\App\Http\Controllers\Api\Admin\PosController::class, 'saleSubscription']);
+    });
+
+    // 3. BOOKINGS MANAGEMENT (Super Admin, Admin, Manager, Guichetier, Comptable)
+    Route::middleware(['role:super_admin|admin|manager|guichetier|comptable'])->group(function () {
+        Route::apiResource('bookings', \App\Http\Controllers\Api\Admin\BookingController::class)->only(['index', 'show']);
+    });
+
+    // 4. REPORTING (Super Admin, Admin, Manager, Comptable)
+    Route::middleware(['role:super_admin|admin|manager|comptable'])->group(function () {
+        Route::get('reports/sales', [\App\Http\Controllers\Api\Admin\ReportController::class, 'sales']);
+        Route::get('reports/cash-desk/{cashDesk}/stats', [\App\Http\Controllers\Api\Admin\ReportController::class, 'cashDeskStats']);
+        Route::get('reports/manifest/{trip}', [\App\Http\Controllers\Api\Admin\ReportController::class, 'manifest']);
+    });
+
+    // 5. SECURITY & LOGS (Super Admin, Admin, Manager, Agent Embarquement)
+    Route::middleware(['role:super_admin|admin|manager|agent_embarquement'])->group(function () {
+        Route::get('access-logs', [\App\Http\Controllers\Api\Admin\AccessLogController::class, 'index']);
+        Route::get('access-logs/latest', [\App\Http\Controllers\Api\Admin\AccessLogController::class, 'latest']);
+    });
 });

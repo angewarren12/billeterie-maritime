@@ -10,9 +10,35 @@ class Ticket extends Model
 {
     use HasFactory, HasUuids;
 
+    // Passenger Type Constants
+    public const TYPE_ADULT = 'adult';
+    public const TYPE_CHILD = 'child';
+    public const TYPE_BABY = 'baby';
+
+    // Nationality Group Constants
+    public const NATIONALITY_NATIONAL = 'national';
+    public const NATIONALITY_RESIDENT = 'resident';
+    public const NATIONALITY_AFRICAN = 'african';
+    public const NATIONALITY_HORS_AFRIQUE = 'hors_afrique';
+
+    // Labels for display
+    public const TYPE_LABELS = [
+        self::TYPE_ADULT => 'Adulte',
+        self::TYPE_CHILD => 'Enfant',
+        self::TYPE_BABY => 'Bébé',
+    ];
+
+    public const NATIONALITY_LABELS = [
+        self::NATIONALITY_NATIONAL => 'National/CEDEAO',
+        self::NATIONALITY_RESIDENT => 'Résident',
+        self::NATIONALITY_AFRICAN => 'Africain',
+        self::NATIONALITY_HORS_AFRIQUE => 'Étranger',
+    ];
+
     protected $fillable = [
         'booking_id',
         'trip_id',
+        'return_trip_id',
         'passenger_name',
         'passenger_type',
         'nationality_group',
@@ -35,6 +61,11 @@ class Ticket extends Model
     public function trip()
     {
         return $this->belongsTo(Trip::class);
+    }
+
+    public function returnTrip()
+    {
+        return $this->belongsTo(Trip::class, 'return_trip_id');
     }
 
     public function accessLogs()

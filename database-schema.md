@@ -79,8 +79,6 @@ erDiagram
         int id PK
         string name
         int total_capacity_pax
-        int total_capacity_vehicles
-        int total_capacity_freight
         boolean is_active
     }
 
@@ -99,7 +97,6 @@ erDiagram
         datetime arrival_time
         enum status "SCHEDULED, BOARDING, DEPARTED, CANCELLED, DELAYED"
         int available_seats_pax
-        int available_slots_vehicles
     }
 
     %% --- TARIFICATION ---
