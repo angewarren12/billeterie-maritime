@@ -599,9 +599,9 @@ export default function POSDashboard() {
                                                 </div>
                                             </div>
 
-                                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+                                            <div className="space-y-3">
                                                 {trips.length === 0 ? (
-                                                    <div className="col-span-full py-16 text-center border-2 border-dashed border-slate-100 dark:border-slate-700 rounded-[2.5rem]">
+                                                    <div className="py-16 text-center border-2 border-dashed border-slate-100 dark:border-slate-700 rounded-[2.5rem]">
                                                         <ClockIcon className="w-12 h-12 text-slate-200 mx-auto mb-4" />
                                                         <p className="text-slate-400 font-bold uppercase tracking-widest text-[10px]">Aucun voyage programmé</p>
                                                     </div>
@@ -610,41 +610,57 @@ export default function POSDashboard() {
                                                         <div
                                                             key={trip.id}
                                                             onClick={() => setSelectedTrip(trip)}
-                                                            className={`group relative cursor-pointer p-6 rounded-[2rem] border-2 transition-all duration-500 ${selectedTrip?.id === trip.id
-                                                                ? 'border-indigo-500 bg-indigo-500/5 dark:bg-indigo-500/10 shadow-2xl shadow-indigo-500/10 scale-[1.02]'
-                                                                : 'border-slate-100 dark:border-slate-700 bg-slate-50/30 dark:bg-slate-800/50 hover:border-indigo-200 dark:hover:border-indigo-900/50'
+                                                            className={`group relative cursor-pointer p-5 rounded-2xl border-2 transition-all duration-300 flex items-center gap-6 ${selectedTrip?.id === trip.id
+                                                                ? 'border-indigo-500 bg-indigo-500/5 dark:bg-indigo-500/10 shadow-lg shadow-indigo-500/10'
+                                                                : 'border-slate-100 dark:border-slate-700 bg-white dark:bg-slate-800/50 hover:border-indigo-200 dark:hover:border-indigo-900/50 hover:shadow-md'
                                                                 }`}
                                                         >
-                                                            <div className="flex flex-col h-full gap-5">
-                                                                <div className="flex justify-between items-start">
-                                                                    <div className={`px-3 py-1.5 rounded-xl text-[9px] font-black uppercase tracking-widest ${trip.available_seats_pax > 20 ? 'text-emerald-600 bg-emerald-500/10' : 'text-rose-600 bg-rose-500/10'}`}>
-                                                                        {trip.available_seats_pax} places
-                                                                    </div>
-                                                                    <div className="text-right">
-                                                                        <div className="text-[10px] font-bold text-slate-400 uppercase tracking-widest leading-none">Départ</div>
-                                                                        <div className="text-lg font-black tabular-nums mt-1">
-                                                                            {new Date(trip.departure_time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                                                                        </div>
-                                                                    </div>
-                                                                </div>
-
-                                                                <div className="font-black text-lg leading-tight space-y-1">
-                                                                    <div className="text-slate-800 dark:text-white uppercase truncate">{trip.route.departure_port.name}</div>
-                                                                    <div className="flex items-center gap-2">
-                                                                        <div className="h-[2px] w-4 bg-indigo-300"></div>
-                                                                        <span className="text-[10px] text-indigo-400 uppercase font-black italic">vers</span>
-                                                                    </div>
-                                                                    <div className="text-indigo-600 dark:text-indigo-400 uppercase truncate">{trip.route.arrival_port.name}</div>
-                                                                </div>
-
-                                                                <div className="mt-auto pt-4 flex justify-between items-end border-t border-slate-100 dark:border-slate-700/50">
-                                                                    <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wide truncate max-w-[100px]">{trip.ship.name}</span>
-                                                                    <div className="text-xl font-black text-slate-900 dark:text-white">
-                                                                        {parseInt(trip.base_price || '5000').toLocaleString()} <span className="text-[10px] text-indigo-500">CFA</span>
-                                                                    </div>
+                                                            {/* Time */}
+                                                            <div className="flex-shrink-0 w-20 text-center">
+                                                                <div className="text-[10px] font-bold text-slate-400 uppercase tracking-widest leading-none mb-1">Départ</div>
+                                                                <div className="text-2xl font-black tabular-nums text-slate-900 dark:text-white">
+                                                                    {new Date(trip.departure_time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                                                                 </div>
                                                             </div>
 
+                                                            {/* Route */}
+                                                            <div className="flex-1 min-w-0">
+                                                                <div className="flex items-center gap-3">
+                                                                    <div className="font-black text-base text-slate-800 dark:text-white uppercase truncate">
+                                                                        {trip.route.departure_port.name}
+                                                                    </div>
+                                                                    <div className="flex items-center gap-2 flex-shrink-0">
+                                                                        <div className="h-[2px] w-6 bg-indigo-300"></div>
+                                                                        <svg className="w-4 h-4 text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M9 5l7 7-7 7" />
+                                                                        </svg>
+                                                                    </div>
+                                                                    <div className="font-black text-base text-indigo-600 dark:text-indigo-400 uppercase truncate">
+                                                                        {trip.route.arrival_port.name}
+                                                                    </div>
+                                                                </div>
+                                                                <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wide mt-1 truncate">
+                                                                    {trip.ship.name}
+                                                                </div>
+                                                            </div>
+
+                                                            {/* Seats */}
+                                                            <div className="flex-shrink-0 text-center w-24">
+                                                                <div className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-widest ${trip.available_seats_pax > 20 ? 'text-emerald-600 bg-emerald-500/10' : 'text-rose-600 bg-rose-500/10'}`}>
+                                                                    <UserGroupIcon className="w-4 h-4" />
+                                                                    {trip.available_seats_pax}
+                                                                </div>
+                                                            </div>
+
+                                                            {/* Price */}
+                                                            <div className="flex-shrink-0 text-right w-28">
+                                                                <div className="text-2xl font-black text-slate-900 dark:text-white tabular-nums">
+                                                                    {parseInt(trip.base_price || '5000').toLocaleString()}
+                                                                </div>
+                                                                <div className="text-[10px] font-bold text-indigo-500 uppercase tracking-widest">FCFA</div>
+                                                            </div>
+
+                                                            {/* Selected indicator */}
                                                             {selectedTrip?.id === trip.id && (
                                                                 <div className="absolute -top-2 -right-2 p-1.5 bg-indigo-600 rounded-full shadow-lg border-2 border-white dark:border-slate-800">
                                                                     <CheckCircleIcon className="w-4 h-4 text-white" />
@@ -1061,17 +1077,17 @@ export default function POSDashboard() {
 
                                         <div className="grid grid-cols-2 gap-4">
                                             <button
-                                                disabled={loading || basket.length === 0}
+                                                disabled={loading || basket.length === 0 || (basket.some(i => i.id.startsWith('sub_')) && !selectedCustomer && !showCreateCustomer)}
                                                 onClick={() => handleFinalizeSale('cash')}
-                                                className="group flex flex-col items-center gap-2.5 p-6 bg-emerald-600 text-white rounded-[2.5rem] font-black shadow-xl shadow-emerald-600/20 hover:scale-[1.02] active:scale-95 transition-all disabled:opacity-50"
+                                                className="group flex flex-col items-center gap-2.5 p-6 bg-emerald-600 text-white rounded-[2.5rem] font-black shadow-xl shadow-emerald-600/20 hover:scale-[1.02] active:scale-95 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
                                             >
                                                 <BanknotesIcon className="w-8 h-8 opacity-60 group-hover:opacity-100 transition-opacity" />
                                                 <span className="text-[9px] uppercase tracking-[0.2em]">Espèces</span>
                                             </button>
                                             <button
-                                                disabled={loading || basket.length === 0}
+                                                disabled={loading || basket.length === 0 || (basket.some(i => i.id.startsWith('sub_')) && !selectedCustomer && !showCreateCustomer)}
                                                 onClick={() => handleFinalizeSale('card')}
-                                                className="group flex flex-col items-center gap-2.5 p-6 bg-indigo-600 text-white rounded-[2.5rem] font-black shadow-xl shadow-indigo-600/20 hover:scale-[1.02] active:scale-95 transition-all disabled:opacity-50"
+                                                className="group flex flex-col items-center gap-2.5 p-6 bg-indigo-600 text-white rounded-[2.5rem] font-black shadow-xl shadow-indigo-600/20 hover:scale-[1.02] active:scale-95 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
                                             >
                                                 <CreditCardIcon className="w-8 h-8 opacity-60 group-hover:opacity-100 transition-opacity" />
                                                 <span className="text-[9px] uppercase tracking-[0.2em]">Digital / Carte</span>
@@ -1087,95 +1103,99 @@ export default function POSDashboard() {
 
             {/* Application Modals */}
             {/* Modal: Ouverture de Caisse */}
-            {showOpenSessionModal && (
-                <div className="fixed inset-0 z-[100] flex items-center justify-center p-6 bg-slate-900/80 backdrop-blur-xl">
-                    <div className="bg-white dark:bg-slate-800 rounded-[3rem] p-12 max-w-md w-full shadow-[0_0_100px_rgba(79,70,229,0.2)] border border-slate-200 dark:border-slate-700">
-                        <div className="w-20 h-20 bg-indigo-600 rounded-[2rem] flex items-center justify-center mb-8 shadow-2xl shadow-indigo-600/30">
-                            <BanknotesIcon className="w-10 h-10 text-white" />
-                        </div>
-                        <h2 className="text-3xl font-black text-slate-800 dark:text-white uppercase tracking-tighter mb-2">Prise de Poste</h2>
-                        <p className="text-slate-500 text-sm mb-10 leading-relaxed font-medium">L'ouverture de session est requise. Veuillez renseigner le fond de caisse de départ.</p>
-
-                        <div className="space-y-6">
-                            <div className="space-y-2">
-                                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1">Fond de Caisse (FCFA)</label>
-                                <div className="relative">
-                                    <input
-                                        type="number"
-                                        value={openingAmount}
-                                        onChange={e => setOpeningAmount(e.target.value)}
-                                        className="w-full bg-slate-50 dark:bg-slate-700/50 border-none rounded-2xl p-6 text-3xl font-black text-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-indigo-500/20"
-                                    />
-                                    <span className="absolute right-6 top-8 font-black text-slate-300">CFA</span>
-                                </div>
+            {
+                showOpenSessionModal && (
+                    <div className="fixed inset-0 z-[100] flex items-center justify-center p-6 bg-slate-900/80 backdrop-blur-xl">
+                        <div className="bg-white dark:bg-slate-800 rounded-[3rem] p-12 max-w-md w-full shadow-[0_0_100px_rgba(79,70,229,0.2)] border border-slate-200 dark:border-slate-700">
+                            <div className="w-20 h-20 bg-indigo-600 rounded-[2rem] flex items-center justify-center mb-8 shadow-2xl shadow-indigo-600/30">
+                                <BanknotesIcon className="w-10 h-10 text-white" />
                             </div>
-                            <button
-                                onClick={handleOpenSession}
-                                disabled={loading}
-                                className="w-full bg-indigo-600 hover:bg-indigo-500 text-white font-black py-6 rounded-2xl uppercase tracking-widest text-[11px] shadow-2xl shadow-indigo-600/30 transition-all hover:scale-[1.02] active:scale-95"
-                            >
-                                {loading ? 'Traitement en cours...' : 'Confirmer et Ouvrir la Caisse'}
-                            </button>
+                            <h2 className="text-3xl font-black text-slate-800 dark:text-white uppercase tracking-tighter mb-2">Prise de Poste</h2>
+                            <p className="text-slate-500 text-sm mb-10 leading-relaxed font-medium">L'ouverture de session est requise. Veuillez renseigner le fond de caisse de départ.</p>
+
+                            <div className="space-y-6">
+                                <div className="space-y-2">
+                                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1">Fond de Caisse (FCFA)</label>
+                                    <div className="relative">
+                                        <input
+                                            type="number"
+                                            value={openingAmount}
+                                            onChange={e => setOpeningAmount(e.target.value)}
+                                            className="w-full bg-slate-50 dark:bg-slate-700/50 border-none rounded-2xl p-6 text-3xl font-black text-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-indigo-500/20"
+                                        />
+                                        <span className="absolute right-6 top-8 font-black text-slate-300">CFA</span>
+                                    </div>
+                                </div>
+                                <button
+                                    onClick={handleOpenSession}
+                                    disabled={loading}
+                                    className="w-full bg-indigo-600 hover:bg-indigo-500 text-white font-black py-6 rounded-2xl uppercase tracking-widest text-[11px] shadow-2xl shadow-indigo-600/30 transition-all hover:scale-[1.02] active:scale-95"
+                                >
+                                    {loading ? 'Traitement en cours...' : 'Confirmer et Ouvrir la Caisse'}
+                                </button>
+                            </div>
                         </div>
                     </div>
-                </div>
-            )}
+                )
+            }
 
             {/* Modal: Clôture de Session */}
-            {showCloseSessionModal && (
-                <div className="fixed inset-0 z-[100] flex items-center justify-center p-6 bg-slate-900/80 backdrop-blur-xl">
-                    <div className="bg-white dark:bg-slate-800 rounded-[3rem] p-12 max-w-md w-full shadow-2xl border border-slate-200 dark:border-slate-700">
-                        <div className="w-20 h-20 bg-rose-600 rounded-[2rem] flex items-center justify-center mb-8 shadow-2xl shadow-rose-600/30">
-                            <LockClosedIcon className="w-10 h-10 text-white" />
-                        </div>
-                        <h2 className="text-3xl font-black text-slate-800 dark:text-white uppercase tracking-tighter mb-2">Clôture Finale</h2>
-                        <p className="text-slate-500 text-sm mb-10 leading-relaxed font-medium">Bilan de la vacation. Déclarer les fonds physiques pour la réconciliation.</p>
+            {
+                showCloseSessionModal && (
+                    <div className="fixed inset-0 z-[100] flex items-center justify-center p-6 bg-slate-900/80 backdrop-blur-xl">
+                        <div className="bg-white dark:bg-slate-800 rounded-[3rem] p-12 max-w-md w-full shadow-2xl border border-slate-200 dark:border-slate-700">
+                            <div className="w-20 h-20 bg-rose-600 rounded-[2rem] flex items-center justify-center mb-8 shadow-2xl shadow-rose-600/30">
+                                <LockClosedIcon className="w-10 h-10 text-white" />
+                            </div>
+                            <h2 className="text-3xl font-black text-slate-800 dark:text-white uppercase tracking-tighter mb-2">Clôture Finale</h2>
+                            <p className="text-slate-500 text-sm mb-10 leading-relaxed font-medium">Bilan de la vacation. Déclarer les fonds physiques pour la réconciliation.</p>
 
-                        <div className="bg-slate-50 dark:bg-slate-700/50 p-6 rounded-3xl mb-8 border border-slate-100 dark:border-slate-700">
-                            <div className="flex justify-between items-center">
-                                <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Attendu Théorique</span>
-                                <span className="text-xl font-black text-slate-900 dark:text-white tabular-nums">{activeSession?.expected_amount.toLocaleString()} <span className="text-[10px] text-indigo-500 italic">CFA</span></span>
+                            <div className="bg-slate-50 dark:bg-slate-700/50 p-6 rounded-3xl mb-8 border border-slate-100 dark:border-slate-700">
+                                <div className="flex justify-between items-center">
+                                    <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Attendu Théorique</span>
+                                    <span className="text-xl font-black text-slate-900 dark:text-white tabular-nums">{activeSession?.expected_amount.toLocaleString()} <span className="text-[10px] text-indigo-500 italic">CFA</span></span>
+                                </div>
                             </div>
-                        </div>
 
-                        <div className="space-y-6">
-                            <div className="space-y-2">
-                                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1">Montant Réel Constaté</label>
-                                <input
-                                    type="number"
-                                    value={closingAmount}
-                                    onChange={e => setClosingAmount(e.target.value)}
-                                    className="w-full bg-slate-50 dark:bg-slate-700/50 border-none rounded-2xl p-5 text-2xl font-black outline-none focus:ring-2 focus:ring-rose-500/20"
-                                />
-                            </div>
-                            <div className="space-y-2">
-                                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1">Notes d'Opération (Anomalies...)</label>
-                                <textarea
-                                    value={closingNotes}
-                                    onChange={e => setClosingNotes(e.target.value)}
-                                    className="w-full bg-slate-50 dark:bg-slate-700/50 border-none rounded-2xl p-4 text-sm font-medium outline-none focus:ring-2 focus:ring-rose-500/20 h-24 resize-none"
-                                    placeholder="Préciser si écart ou incident..."
-                                />
-                            </div>
-                            <div className="flex gap-4">
-                                <button
-                                    onClick={() => setShowCloseSessionModal(false)}
-                                    className="flex-1 bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 font-black py-5 rounded-2xl uppercase tracking-widest text-[10px]"
-                                >
-                                    Annuler
-                                </button>
-                                <button
-                                    onClick={handleCloseSession}
-                                    disabled={loading}
-                                    className="flex-[2] bg-rose-600 hover:bg-rose-500 text-white font-black py-5 rounded-2xl uppercase tracking-widest text-[10px] shadow-xl shadow-rose-600/30 transition-all hover:scale-[1.02] active:scale-95"
-                                >
-                                    {loading ? 'Clôture...' : 'Confirmer la Fin de Service'}
-                                </button>
+                            <div className="space-y-6">
+                                <div className="space-y-2">
+                                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1">Montant Réel Constaté</label>
+                                    <input
+                                        type="number"
+                                        value={closingAmount}
+                                        onChange={e => setClosingAmount(e.target.value)}
+                                        className="w-full bg-slate-50 dark:bg-slate-700/50 border-none rounded-2xl p-5 text-2xl font-black outline-none focus:ring-2 focus:ring-rose-500/20"
+                                    />
+                                </div>
+                                <div className="space-y-2">
+                                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1">Notes d'Opération (Anomalies...)</label>
+                                    <textarea
+                                        value={closingNotes}
+                                        onChange={e => setClosingNotes(e.target.value)}
+                                        className="w-full bg-slate-50 dark:bg-slate-700/50 border-none rounded-2xl p-4 text-sm font-medium outline-none focus:ring-2 focus:ring-rose-500/20 h-24 resize-none"
+                                        placeholder="Préciser si écart ou incident..."
+                                    />
+                                </div>
+                                <div className="flex gap-4">
+                                    <button
+                                        onClick={() => setShowCloseSessionModal(false)}
+                                        className="flex-1 bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 font-black py-5 rounded-2xl uppercase tracking-widest text-[10px]"
+                                    >
+                                        Annuler
+                                    </button>
+                                    <button
+                                        onClick={handleCloseSession}
+                                        disabled={loading}
+                                        className="flex-[2] bg-rose-600 hover:bg-rose-500 text-white font-black py-5 rounded-2xl uppercase tracking-widest text-[10px] shadow-xl shadow-rose-600/30 transition-all hover:scale-[1.02] active:scale-95"
+                                    >
+                                        {loading ? 'Clôture...' : 'Confirmer la Fin de Service'}
+                                    </button>
+                                </div>
                             </div>
                         </div>
                     </div>
-                </div>
-            )}
-        </div>
+                )
+            }
+        </div >
     );
 }
