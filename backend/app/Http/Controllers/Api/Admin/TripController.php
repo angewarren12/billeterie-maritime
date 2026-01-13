@@ -1,20 +1,20 @@
-        <?php
+<?php
 
-        namespace App\Http\Controllers\Api\Admin;
+namespace App\Http\Controllers\Api\Admin;
 
-        use App\Http\Controllers\Controller;
-        use App\Models\Trip;
-        use Illuminate\Http\Request;
-        use Illuminate\Support\Facades\DB;
-        use Illuminate\Validation\Rule;
+use App\Http\Controllers\Controller;
+use App\Models\Trip;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\Rule;
 
-        class TripController extends Controller
-        {
-            /**
-             * Display a listing of the resource.
-             */
-            public function index(Request $request)
-            {
+class TripController extends Controller
+{
+    /**
+     * Display a listing of the resource.
+     */
+    public function index(Request $request)
+    {
                 \Illuminate\Support\Facades\Gate::authorize('view_any_trip');
                 $start = microtime(true);
 

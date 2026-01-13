@@ -1,16 +1,35 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
 import { LockClosedIcon, UserIcon } from '@heroicons/react/24/outline';
 
 export default function AdminLogin() {
     const navigate = useNavigate();
-    const { login } = useAuth(); // On réutilise le même contexte pour le moment
-
+    const [loading, setLoading] = useState(false);
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
     const [error, setError] = useState('');
-    const [loading, setLoading] = useState(false);
+    const { login, user, isLoading } = useAuth();
+
+    useEffect(() => {
+        if (!isLoading && user) {
+            switch (user.role) {
+                case 'guichetier':
+                    navigate('/admin/pos', { replace: true });
+                    break;
+                case 'agent_controle':
+                    navigate('/admin/monitoring', { replace: true });
+                    break;
+                case 'admin':
+                case 'super_admin':
+                case 'manager':
+                    navigate('/admin', { replace: true });
+                    break;
+                default:
+                    navigate('/mon-compte', { replace: true });
+            }
+        }
+    }, [user, isLoading, navigate]);
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
