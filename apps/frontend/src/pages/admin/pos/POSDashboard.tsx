@@ -55,6 +55,15 @@ export default function POSDashboard() {
     const [closingAmount, setClosingAmount] = useState('0');
     const [closingNotes, setClosingNotes] = useState('');
     const [viewMode, setViewMode] = useState<'tickets' | 'subscriptions' | 'history'>('tickets');
+    const [subTab, setSubTab] = useState<'plans' | 'manage'>('plans');
+    const [subscriptions, setSubscriptions] = useState<any[]>([]);
+    const [subSearch, setSubSearch] = useState('');
+    const [subLoading, setSubLoading] = useState(false);
+    const [rfidInputs, setRfidInputs] = useState<Record<string, string>>({});
+    const [historyBookings, setHistoryBookings] = useState<any[]>([]);
+    const [historyLoading, setHistoryLoading] = useState(false);
+    const [showCreateCustomer, setShowCreateCustomer] = useState(false);
+    const [newCustomerForm, setNewCustomerForm] = useState({ name: '', phone: '', email: '' });
 
     useEffect(() => {
         loadInitialData();
@@ -74,37 +83,96 @@ export default function POSDashboard() {
     const loadInitialData = async () => {
         setLoading(true);
         try {
-            const user = await apiService.getCurrentUser();
-            setCurrentUser(user);
+            // Parallélisation des appels pour gagner en vitesse
+            const [user, sessionRes, plans] = await Promise.all([
+                apiService.getCurrentUser(),
+                apiService.getPosSessionStatus(),
+                apiService.getSubscriptionPlans()
+            ]);
 
-            // 1. Vérifier le statut de la session
-            const sessionRes = await apiService.getPosSessionStatus();
+            setCurrentUser(user);
+            setSubscriptionPlans(plans.data || plans);
+
+            // Détection immédiate du guichet depuis l'utilisateur si pas de session
+            if (user.cash_desk) {
+                setActiveCashDesk(user.cash_desk);
+            }
+
             if (sessionRes.has_active_session) {
                 setActiveSession(sessionRes.session);
                 setActiveCashDesk(sessionRes.session.cash_desk);
-
-                // Charger les voyages pour ce guichet
-                await loadTrips(sessionRes.session.cash_desk.port_id);
+                // Charger les voyages en arrière-plan
+                loadTrips(sessionRes.session.cash_desk.port_id);
             } else {
                 setActiveSession(null);
-                // Si pas de session, voir si un guichet est par défaut
                 if (user.cash_desk) {
-                    setActiveCashDesk(user.cash_desk);
                     setShowOpenSessionModal(true);
                 } else {
                     toast.error("Aucun guichet ne vous est assigné.");
                 }
             }
-
-            // 2. Charger les plans d'abonnement
-            const plans = await apiService.getSubscriptionPlans();
-            setSubscriptionPlans(plans);
-
         } catch (error) {
             console.error("Erreur chargement initial", error);
             toast.error("Erreur lors de la récupération des données");
         } finally {
             setLoading(false);
+        }
+    };
+
+    const loadSubscriptions = async (search: string = '') => {
+        setSubLoading(true);
+        try {
+            const res = await apiService.getAdminSubscriptions({ search });
+            setSubscriptions(res.data?.data || res.data || res);
+        } catch (error) {
+            console.error("Erreur chargement abonnements", error);
+            toast.error("Erreur lors du chargement des abonnements");
+        } finally {
+            setSubLoading(false);
+        }
+    };
+
+    const loadHistory = async () => {
+        setHistoryLoading(true);
+        try {
+            const res = await apiService.getAdminBookings({ limit: 50 });
+            setHistoryBookings(res.data?.data || res.data || []);
+        } catch (error) {
+            console.error("Erreur chargement historique", error);
+            toast.error("Impossible de charger l'historique");
+        } finally {
+            setHistoryLoading(false);
+        }
+    };
+
+    useEffect(() => {
+        if (viewMode === 'history') {
+            loadHistory();
+        }
+    }, [viewMode]);
+
+    const handleAssociateRfid = async (subId: string) => {
+        const rfid = rfidInputs[subId];
+        if (!rfid) {
+            toast.error("Veuillez saisir un numéro de carte RFID");
+            return;
+        }
+        try {
+            await apiService.associateRfid(subId, rfid);
+            toast.success("Carte RFID associée avec succès");
+            loadSubscriptions(subSearch);
+        } catch (error) {
+            console.error(error);
+        }
+    };
+
+    const handleDeliverSub = async (subId: string) => {
+        try {
+            await apiService.deliverSubscription(subId);
+            toast.success("Abonnement marqué comme livré");
+            loadSubscriptions(subSearch);
+        } catch (error) {
+            console.error(error);
         }
     };
 
@@ -119,7 +187,7 @@ export default function POSDashboard() {
             });
 
             const now = new Date();
-            const filteredTrips = (tripsRes.data || []).filter((t: any) => {
+            const filteredTrips = (tripsRes?.data || tripsRes || []).filter((t: any) => {
                 const depTime = new Date(t.departure_time);
                 return depTime >= now;
             });
@@ -139,19 +207,26 @@ export default function POSDashboard() {
         }
     };
 
-    const handleCustomerSearch = async (val: string) => {
+    const handleCustomerSearch = (val: string) => {
         setCustomerSearch(val);
-        if (val.length < 2) {
-            setCustomers([]);
-            return;
-        }
-        try {
-            const results = await apiService.searchPosCustomers(val);
-            setCustomers(results);
-        } catch (error) {
-            console.error(error);
-        }
     };
+
+    useEffect(() => {
+        const timer = setTimeout(async () => {
+            if (customerSearch.length < 2) {
+                setCustomers([]);
+                return;
+            }
+            try {
+                const results = await apiService.searchPosCustomers(customerSearch);
+                setCustomers(results);
+            } catch (error) {
+                console.error(error);
+            }
+        }, 300);
+
+        return () => clearTimeout(timer);
+    }, [customerSearch]);
 
     const addToBasket = () => {
         if (!selectedTrip) {
@@ -184,32 +259,68 @@ export default function POSDashboard() {
     const totalAmount = basket.reduce((sum, item) => sum + item.price, 0);
 
     const handleFinalizeSale = async (method: string) => {
-        if (!selectedTrip || basket.length === 0) {
-            toast.error("Panier vide ou voyage non sélectionné");
+        if (!selectedTrip && !basket.find(i => i.id.startsWith('sub_'))) {
+            toast.error("Panier vide ou sélection manquante");
             return;
         }
 
         setLoading(true);
         try {
+            let customerId = selectedCustomer?.id;
+
+            // Si on doit créer un client
+            if (showCreateCustomer && newCustomerForm.name) {
+                try {
+                    const res = await apiService.createPosCustomer(newCustomerForm);
+                    customerId = res.data.id;
+                    toast.success("Client créé avec succès");
+                } catch (e: any) {
+                    toast.error("Erreur lors de la création du client: " + (e.response?.data?.message || "Erreur"));
+                    setLoading(false);
+                    return;
+                }
+            }
+
             // Vérifier si c'est une vente d'abonnement
             const subItem = basket.find(item => item.id.startsWith('sub_'));
 
             if (subItem) {
                 // Vente d'abonnement
-                if (!selectedCustomer) {
-                    toast.error("Veuillez sélectionner un client pour l'abonnement");
+                if (!customerId) {
+                    toast.error("Veuillez sélectionner ou créer un client");
                     setLoading(false);
                     return;
                 }
 
                 const planId = parseInt(subItem.id.split('_')[1]);
-                await apiService.salePosSubscription({
-                    user_id: selectedCustomer.id,
+                const subResponse = await apiService.salePosSubscription({
+                    user_id: customerId as any,
                     plan_id: planId,
                     payment_method: method
                 });
 
-                toast.success('Abonnement activé avec succès');
+                // Impression reçu abonnement
+                thermalPrintService.printReceipt({
+                    companyName: "LIA MARITIME - POS",
+                    companyAddress: "GARE MARITIME",
+                    trip: {
+                        departure: "ABONNEMENT",
+                        arrival: subItem.name,
+                        date: new Date().toLocaleDateString('fr-FR'),
+                        shipName: "BADGE RFID"
+                    },
+                    bookingRef: `SUB-${subResponse.subscription.id}`,
+                    passengers: [{
+                        name: subResponse.subscription.user.name,
+                        type: 'Abonné',
+                        price: subItem.price
+                    }],
+                    totalAmount: subItem.price,
+                    cashierName: currentUser?.name || "Agent",
+                    date: new Date().toLocaleString('fr-FR')
+                });
+
+                toast.success('Abonnement activé et reçu imprimé');
             } else {
                 // Vente de billets
                 if (!selectedTrip) {
@@ -220,7 +331,7 @@ export default function POSDashboard() {
 
                 const data = {
                     trip_id: selectedTrip.id,
-                    user_id: selectedCustomer?.id,
+                    user_id: customerId,
                     cash_desk_id: activeCashDesk?.id,
                     passengers: basket.map(b => ({
                         name: b.name,
@@ -261,6 +372,8 @@ export default function POSDashboard() {
             setBasket([]);
             setSelectedCustomer(null);
             setCustomerSearch('');
+            setShowCreateCustomer(false);
+            setNewCustomerForm({ name: '', phone: '', email: '' });
             loadTrips();
         } catch (error: any) {
             toast.error(error.response?.data?.message || "Erreur lors de la vente");
@@ -388,6 +501,24 @@ export default function POSDashboard() {
                     </div>
                 </div>
             </header>
+
+            {/* Global Loading Overlay */}
+            {loading && !activeCashDesk && (
+                <div className="fixed inset-0 z-[100] flex flex-col items-center justify-center bg-slate-50/80 dark:bg-slate-900/80 backdrop-blur-xl">
+                    <div className="relative">
+                        <div className="w-24 h-24 border-4 border-indigo-600/20 rounded-full animate-ping"></div>
+                        <div className="absolute inset-0 w-24 h-24 border-4 border-indigo-600 border-t-transparent rounded-full animate-spin"></div>
+                    </div>
+                    <div className="mt-8 flex flex-col items-center">
+                        <h3 className="text-xl font-black text-slate-800 dark:text-white uppercase tracking-tighter mb-2 italic">Initialisation du Terminal...</h3>
+                        <div className="flex gap-1">
+                            <div className="w-1.5 h-1.5 bg-indigo-600 rounded-full animate-bounce [animation-delay:-0.3s]"></div>
+                            <div className="w-1.5 h-1.5 bg-indigo-600 rounded-full animate-bounce [animation-delay:-0.15s]"></div>
+                            <div className="w-1.5 h-1.5 bg-indigo-600 rounded-full animate-bounce"></div>
+                        </div>
+                    </div>
+                </div>
+            )}
 
             {/* Main Content */}
             <main className="flex-1 flex flex-col gap-6 min-h-0">
@@ -581,64 +712,216 @@ export default function POSDashboard() {
                                 )}
 
                                 {viewMode === 'subscriptions' && (
-                                    <div className="flex-1 space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500 overflow-y-auto pr-2 custom-scrollbar">
-                                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                                            {subscriptionPlans.map(plan => (
-                                                <div
-                                                    key={plan.id}
-                                                    className="group bg-white dark:bg-slate-800 rounded-[2.5rem] p-8 shadow-sm border border-slate-200 dark:border-slate-700 hover:shadow-2xl hover:border-indigo-500/30 transition-all cursor-pointer relative overflow-hidden h-fit"
-                                                    onClick={() => {
-                                                        const newItem: BasketItem = {
-                                                            id: `sub_${plan.id}_${Date.now()}`,
-                                                            name: `Badge: ${plan.name}`,
-                                                            type: 'adult',
-                                                            nationality_group: 'national',
-                                                            price: Number(plan.price)
-                                                        };
-                                                        setBasket([newItem]); // One subscription at a time
-                                                        toast.success(`${plan.name} ajouté`);
-                                                    }}
-                                                >
-                                                    <div className="absolute top-0 right-0 p-6">
-                                                        <IdentificationIcon className="w-8 h-8 text-slate-100 dark:text-slate-700/30 group-hover:text-indigo-500/20 transition-colors" />
-                                                    </div>
-                                                    <h3 className="text-xl font-black text-slate-800 dark:text-white uppercase tracking-tighter mb-1">{plan.name}</h3>
-                                                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-6">Valable {plan.duration_days} jours</p>
-                                                    <div className="flex items-baseline gap-2">
-                                                        <span className="text-3xl font-black text-indigo-600 dark:text-indigo-400">{Number(plan.price).toLocaleString()}</span>
-                                                        <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest italic font-medium">CFA</span>
-                                                    </div>
-                                                </div>
-                                            ))}
+                                    <div className="flex-1 flex flex-col gap-6 animate-in fade-in slide-in-from-bottom-4 duration-500 overflow-hidden">
+                                        <div className="flex gap-2">
+                                            <button
+                                                onClick={() => setSubTab('plans')}
+                                                className={`px-6 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${subTab === 'plans' ? 'bg-indigo-600 text-white shadow-lg' : 'bg-white dark:bg-slate-800 text-slate-400 border border-slate-200 dark:border-slate-700'}`}
+                                            >
+                                                Nouveaux Abonnements
+                                            </button>
+                                            <button
+                                                onClick={() => {
+                                                    setSubTab('manage');
+                                                    loadSubscriptions();
+                                                }}
+                                                className={`px-6 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${subTab === 'manage' ? 'bg-indigo-600 text-white shadow-lg' : 'bg-white dark:bg-slate-800 text-slate-400 border border-slate-200 dark:border-slate-700'}`}
+                                            >
+                                                Gestion & RFID
+                                            </button>
                                         </div>
 
-                                        {subscriptionPlans.length === 0 && (
-                                            <div className="h-full flex flex-col items-center justify-center opacity-30">
-                                                <ServerIcon className="w-16 h-16 mb-4" />
-                                                <p className="text-[10px] font-black uppercase tracking-widest">Aucun plan d'abonnement</p>
+                                        {subTab === 'plans' ? (
+                                            <div className="flex-1 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 overflow-y-auto pr-2 custom-scrollbar pb-12">
+                                                {Array.isArray(subscriptionPlans) && subscriptionPlans.map(plan => (
+                                                    <div
+                                                        key={plan.id}
+                                                        className="group bg-white dark:bg-slate-800 rounded-[2.5rem] p-8 shadow-sm border border-slate-200 dark:border-slate-700 hover:shadow-2xl hover:border-indigo-500/30 transition-all cursor-pointer relative overflow-hidden h-fit"
+                                                        onClick={() => {
+                                                            const newItem: BasketItem = {
+                                                                id: `sub_${plan.id}_${Date.now()}`,
+                                                                name: `Badge: ${plan.name}`,
+                                                                type: 'adult',
+                                                                nationality_group: 'national',
+                                                                price: Number(plan.price)
+                                                            };
+                                                            setBasket([newItem]); // One subscription at a time
+                                                            toast.success(`${plan.name} ajouté`);
+                                                        }}
+                                                    >
+                                                        <div className="absolute top-0 right-0 p-6">
+                                                            <IdentificationIcon className="w-8 h-8 text-slate-100 dark:text-slate-700/30 group-hover:text-indigo-500/20 transition-colors" />
+                                                        </div>
+                                                        <h3 className="text-xl font-black text-slate-800 dark:text-white uppercase tracking-tighter mb-1">{plan.name}</h3>
+                                                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-6">Valable {plan.duration_days} jours</p>
+                                                        <div className="flex items-baseline gap-2">
+                                                            <span className="text-3xl font-black text-indigo-600 dark:text-indigo-400">{Number(plan.price).toLocaleString()}</span>
+                                                            <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest italic font-medium">CFA</span>
+                                                        </div>
+                                                    </div>
+                                                ))}
+                                                {subscriptionPlans.length === 0 && (
+                                                    <div className="col-span-full h-full flex flex-col items-center justify-center opacity-30 py-20">
+                                                        <ServerIcon className="w-16 h-16 mb-4" />
+                                                        <p className="text-[10px] font-black uppercase tracking-widest">Aucun plan d'abonnement</p>
+                                                    </div>
+                                                )}
+                                            </div>
+                                        ) : (
+                                            <div className="flex-1 flex flex-col gap-6 overflow-hidden">
+                                                <div className="relative">
+                                                    <input
+                                                        type="text"
+                                                        value={subSearch}
+                                                        onChange={(e) => {
+                                                            setSubSearch(e.target.value);
+                                                            if (e.target.value.length > 2 || e.target.value.length === 0) {
+                                                                loadSubscriptions(e.target.value);
+                                                            }
+                                                        }}
+                                                        placeholder="Rechercher un client ou un abonnement..."
+                                                        className="w-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl py-4 px-6 pl-12 text-sm font-bold outline-none focus:ring-2 focus:ring-indigo-500/20 shadow-sm"
+                                                    />
+                                                    <MagnifyingGlassIcon className="w-5 h-5 text-slate-400 absolute left-4 top-4" />
+                                                </div>
+
+                                                <div className="flex-1 overflow-y-auto pr-2 custom-scrollbar space-y-4 pb-12">
+                                                    {subLoading ? (
+                                                        <div className="flex justify-center py-20">
+                                                            <div className="w-10 h-10 border-4 border-indigo-600 border-t-transparent rounded-full animate-spin"></div>
+                                                        </div>
+                                                    ) : (!Array.isArray(subscriptions) || subscriptions.length === 0) ? (
+                                                        <div className="py-20 text-center border-2 border-dashed border-slate-200 dark:border-slate-700 rounded-[2.5rem] opacity-40">
+                                                            <UserGroupIcon className="w-12 h-12 mx-auto mb-4" />
+                                                            <p className="text-[10px] font-black uppercase tracking-widest">Aucun abonnement trouvé</p>
+                                                        </div>
+                                                    ) : (
+                                                        subscriptions.map(sub => (
+                                                            <div key={sub.id} className="bg-white dark:bg-slate-800 rounded-[2rem] p-6 border border-slate-200 dark:border-slate-700 shadow-sm flex flex-col gap-6">
+                                                                <div className="flex justify-between items-start">
+                                                                    <div className="flex gap-4">
+                                                                        <div className="w-12 h-12 rounded-2xl bg-indigo-50 dark:bg-indigo-900/30 flex items-center justify-center text-indigo-600 font-black text-xl">
+                                                                            {sub.user?.name?.charAt(0)}
+                                                                        </div>
+                                                                        <div>
+                                                                            <h4 className="font-black text-slate-800 dark:text-white uppercase truncate max-w-[200px]">{sub.user?.name}</h4>
+                                                                            <p className="text-[10px] font-bold text-indigo-500 uppercase tracking-widest">{sub.plan?.name}</p>
+                                                                            <p className="text-[10px] font-medium text-slate-400 mt-1">Exp: {sub.end_date ? new Date(sub.end_date).toLocaleDateString() : 'N/A'}</p>
+                                                                        </div>
+                                                                    </div>
+                                                                    <div className={`px-4 py-1.5 rounded-full text-[9px] font-black uppercase tracking-widest ${sub.status === 'active' ? 'bg-emerald-500/10 text-emerald-600' : 'bg-amber-500/10 text-amber-600'}`}>
+                                                                        {sub.status === 'active' ? 'Actif' : sub.status}
+                                                                    </div>
+                                                                </div>
+
+                                                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-6 border-t border-slate-50 dark:border-white/5">
+                                                                    {/* RFID Section */}
+                                                                    <div className="space-y-3">
+                                                                        <label className="text-[9px] font-black text-slate-400 uppercase tracking-[0.2em] pl-1">Identifiant RFID</label>
+                                                                        <div className="flex gap-2">
+                                                                            <input
+                                                                                type="text"
+                                                                                defaultValue={sub.rfid_card_id || ''}
+                                                                                placeholder="Scur un badge..."
+                                                                                onChange={(e) => setRfidInputs({ ...rfidInputs, [sub.id]: e.target.value })}
+                                                                                className="flex-1 bg-slate-50 dark:bg-slate-700/50 border-none rounded-xl py-2.5 px-4 text-xs font-mono outline-none focus:ring-1 focus:ring-indigo-500"
+                                                                            />
+                                                                            <button
+                                                                                onClick={() => handleAssociateRfid(sub.id)}
+                                                                                className="px-4 py-2 bg-indigo-600 text-white rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-indigo-500 transition-all"
+                                                                            >
+                                                                                Associer
+                                                                            </button>
+                                                                        </div>
+                                                                    </div>
+
+                                                                    {/* Delivery Section */}
+                                                                    <div className="flex items-end gap-4">
+                                                                        <div className="flex-1 space-y-3">
+                                                                            <label className="text-[9px] font-black text-slate-400 uppercase tracking-[0.2em] pl-1">Livraison Badge</label>
+                                                                            <button
+                                                                                disabled={sub.delivered_at || !sub.rfid_card_id}
+                                                                                onClick={() => handleDeliverSub(sub.id)}
+                                                                                className={`w-full py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${sub.delivered_at ? 'bg-emerald-500 text-white opacity-50 cursor-not-allowed' : 'bg-slate-900 dark:bg-white text-white dark:text-slate-900 hover:scale-[1.02] active:scale-95'}`}
+                                                                            >
+                                                                                {sub.delivered_at ? (
+                                                                                    <span className="flex items-center justify-center gap-2">
+                                                                                        <CheckCircleIcon className="w-4 h-4" />
+                                                                                        Livré le {new Date(sub.delivered_at).toLocaleDateString()}
+                                                                                    </span>
+                                                                                ) : 'Marquer comme livré'}
+                                                                            </button>
+                                                                        </div>
+                                                                    </div>
+                                                                </div>
+                                                            </div>
+                                                        ))
+                                                    )}
+                                                </div>
                                             </div>
                                         )}
                                     </div>
                                 )}
 
                                 {viewMode === 'history' && (
-                                    <div className="flex-1 flex flex-col bg-white dark:bg-slate-800 rounded-[2.5rem] p-8 border border-slate-200 dark:border-slate-700 shadow-sm overflow-hidden">
+                                    <div className="flex-1 flex flex-col bg-white dark:bg-slate-800 rounded-[2.5rem] p-8 border border-slate-200 dark:border-slate-700 shadow-sm overflow-hidden animate-in fade-in slide-in-from-bottom-4 duration-500">
                                         <div className="flex justify-between items-center mb-10">
                                             <h2 className="text-xl font-black uppercase tracking-tight text-slate-800 dark:text-white flex items-center gap-3">
                                                 <div className="w-1.5 h-6 bg-indigo-500 rounded-full"></div>
                                                 Transactions de Session
                                             </h2>
-                                            <span className="px-5 py-2 bg-slate-50 dark:bg-slate-700/50 rounded-full text-[10px] font-black text-slate-400 uppercase tracking-widest">Aujourd'hui</span>
+                                            <button
+                                                onClick={loadHistory}
+                                                className="px-5 py-2 bg-slate-50 dark:bg-slate-700/50 hover:bg-indigo-50 dark:hover:bg-indigo-900/30 rounded-full text-[10px] font-black text-slate-400 hover:text-indigo-600 uppercase tracking-widest transition-all"
+                                            >
+                                                Actualiser
+                                            </button>
                                         </div>
 
-                                        <div className="flex-1 flex flex-col items-center justify-center space-y-6 opacity-30">
-                                            <div className="w-24 h-24 bg-slate-100 dark:bg-slate-700 rounded-[2rem] flex items-center justify-center">
-                                                <ServerIcon className="w-10 h-10 text-slate-300 dark:text-slate-500" />
-                                            </div>
-                                            <div className="text-center space-y-2">
-                                                <p className="font-black uppercase text-xs tracking-[0.2em] text-slate-800 dark:text-white">Aucun historique disponible</p>
-                                                <p className="text-xs font-medium text-slate-400">Les transactions validées apparaîtront ici.</p>
-                                            </div>
+                                        <div className="flex-1 overflow-y-auto pr-2 custom-scrollbar space-y-4">
+                                            {historyLoading ? (
+                                                <div className="flex justify-center py-20">
+                                                    <div className="w-10 h-10 border-4 border-indigo-600 border-t-transparent rounded-full animate-spin"></div>
+                                                </div>
+                                            ) : (!Array.isArray(historyBookings) || historyBookings.length === 0) ? (
+                                                <div className="h-full flex flex-col items-center justify-center space-y-6 opacity-30 py-20">
+                                                    <div className="w-24 h-24 bg-slate-100 dark:bg-slate-700 rounded-[2rem] flex items-center justify-center">
+                                                        <ServerIcon className="w-10 h-10 text-slate-300 dark:text-slate-500" />
+                                                    </div>
+                                                    <div className="text-center space-y-2">
+                                                        <p className="font-black uppercase text-xs tracking-[0.2em] text-slate-800 dark:text-white">Aucun historique disponible</p>
+                                                        <p className="text-xs font-medium text-slate-400">Les transactions de ce guichet apparaîtront ici.</p>
+                                                    </div>
+                                                </div>
+                                            ) : (
+                                                <div className="divide-y dark:divide-slate-700">
+                                                    {historyBookings.map((booking: any) => (
+                                                        <div key={booking.id} className="py-6 flex justify-between items-center group hover:bg-slate-50/50 dark:hover:bg-slate-700/30 px-4 rounded-2xl transition-all">
+                                                            <div className="flex gap-4 items-center">
+                                                                <div className="w-12 h-12 rounded-2xl bg-slate-100 dark:bg-slate-700 flex items-center justify-center font-black text-xs text-slate-400 group-hover:bg-indigo-600 group-hover:text-white transition-all">
+                                                                    #{booking.booking_reference?.slice(-4)}
+                                                                </div>
+                                                                <div>
+                                                                    <div className="font-black text-sm text-slate-800 dark:text-white uppercase tracking-tight">
+                                                                        {booking.user?.name || (booking.tickets?.length > 0 ? booking.tickets[0].passenger_name : 'Client POS')}
+                                                                    </div>
+                                                                    <div className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">
+                                                                        {booking.trip?.route?.departure_port?.name} → {booking.trip?.route?.arrival_port?.name}
+                                                                    </div>
+                                                                </div>
+                                                            </div>
+                                                            <div className="text-right">
+                                                                <div className="font-black text-indigo-600 dark:text-indigo-400 text-sm">
+                                                                    {Number(booking.total_amount).toLocaleString()} CFA
+                                                                </div>
+                                                                <div className="text-[9px] font-black text-slate-400 uppercase tracking-widest mt-1">
+                                                                    {new Date(booking.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                                                </div>
+                                                            </div>
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            )}
                                         </div>
                                     </div>
                                 )}
@@ -648,36 +931,77 @@ export default function POSDashboard() {
                             <aside className="flex-1 flex flex-col gap-6 min-w-[380px]">
                                 {/* Customer Selection */}
                                 <div className="bg-white dark:bg-slate-800 rounded-[2.5rem] p-7 shadow-sm border border-slate-200 dark:border-slate-700">
-                                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-4 block pl-1">Client Privilège (Optionnel)</label>
-                                    <div className="relative">
-                                        <input
-                                            type="text"
-                                            value={customerSearch}
-                                            onChange={e => handleCustomerSearch(e.target.value)}
-                                            placeholder="Mobile ou Nom..."
-                                            className="w-full bg-slate-50 dark:bg-slate-700/50 border-none rounded-2xl p-4 pl-11 text-sm font-bold outline-none"
-                                        />
-                                        <MagnifyingGlassIcon className="w-5 h-5 text-slate-300 absolute left-4 top-4" />
-
-                                        {customers.length > 0 && (
-                                            <div className="absolute top-full left-0 right-0 mt-3 bg-white dark:bg-slate-800 rounded-3xl shadow-2xl border border-slate-100 dark:border-slate-700 z-50 overflow-hidden divide-y dark:divide-slate-700">
-                                                {customers.map(c => (
-                                                    <div
-                                                        key={c.id}
-                                                        onClick={() => {
-                                                            setSelectedCustomer(c);
-                                                            setCustomerSearch(c.name);
-                                                            setCustomers([]);
-                                                        }}
-                                                        className="p-4 hover:bg-slate-50 dark:hover:bg-slate-700 cursor-pointer transition-colors"
-                                                    >
-                                                        <div className="font-bold text-sm">{c.name}</div>
-                                                        <div className="text-[10px] font-bold text-indigo-500 mt-0.5">{c.phone || c.email}</div>
-                                                    </div>
-                                                ))}
-                                            </div>
-                                        )}
+                                    <div className="flex justify-between items-center mb-4">
+                                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1 italic">Identification Client</label>
+                                        <button
+                                            onClick={() => {
+                                                setShowCreateCustomer(!showCreateCustomer);
+                                                if (selectedCustomer) setSelectedCustomer(null);
+                                            }}
+                                            className={`text-[9px] font-black uppercase tracking-widest px-3 py-1 rounded-lg transition-all ${showCreateCustomer ? 'bg-indigo-600 text-white shadow-lg' : 'bg-slate-100 text-slate-500 hover:bg-slate-200'}`}
+                                        >
+                                            {showCreateCustomer ? 'Recherche' : 'Nouveau +'}
+                                        </button>
                                     </div>
+
+                                    {!showCreateCustomer ? (
+                                        <div className="relative">
+                                            <input
+                                                type="text"
+                                                value={customerSearch}
+                                                onChange={e => handleCustomerSearch(e.target.value)}
+                                                placeholder="Mobile ou Nom..."
+                                                className="w-full bg-slate-50 dark:bg-slate-700/50 border-none rounded-2xl p-4 pl-11 text-sm font-bold outline-none"
+                                            />
+                                            <MagnifyingGlassIcon className="w-5 h-5 text-slate-300 absolute left-4 top-4" />
+
+                                            {customers.length > 0 && (
+                                                <div className="absolute top-full left-0 right-0 mt-3 bg-white dark:bg-slate-800 rounded-3xl shadow-2xl border border-slate-100 dark:border-slate-700 z-50 overflow-hidden divide-y dark:divide-slate-700">
+                                                    {customers.map(c => (
+                                                        <div
+                                                            key={c.id}
+                                                            onClick={() => {
+                                                                setSelectedCustomer(c);
+                                                                setCustomerSearch(c.name);
+                                                                setCustomers([]);
+                                                                setNewPassenger({ ...newPassenger, name: c.name });
+                                                            }}
+                                                            className="p-4 hover:bg-slate-50 dark:hover:bg-slate-700 cursor-pointer transition-colors"
+                                                        >
+                                                            <div className="font-bold text-sm">{c.name}</div>
+                                                            <div className="text-[10px] font-bold text-indigo-500 mt-0.5">{c.phone || c.email}</div>
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            )}
+                                        </div>
+                                    ) : (
+                                        <div className="space-y-3 animate-in fade-in slide-in-from-top-2 duration-300">
+                                            <input
+                                                type="text"
+                                                placeholder="Nom complet *"
+                                                value={newCustomerForm.name}
+                                                onChange={e => setNewCustomerForm({ ...newCustomerForm, name: e.target.value })}
+                                                className="w-full bg-slate-50 dark:bg-slate-700/50 border border-indigo-500/20 rounded-xl p-3 text-xs font-bold outline-none focus:ring-2 focus:ring-indigo-500/20"
+                                            />
+                                            <div className="flex gap-2">
+                                                <input
+                                                    type="text"
+                                                    placeholder="Téléphone"
+                                                    value={newCustomerForm.phone}
+                                                    onChange={e => setNewCustomerForm({ ...newCustomerForm, phone: e.target.value })}
+                                                    className="flex-1 bg-slate-50 dark:bg-slate-700/50 border border-slate-200 dark:border-slate-700 rounded-xl p-3 text-xs font-bold outline-none"
+                                                />
+                                                <input
+                                                    type="email"
+                                                    placeholder="Email"
+                                                    value={newCustomerForm.email}
+                                                    onChange={e => setNewCustomerForm({ ...newCustomerForm, email: e.target.value })}
+                                                    className="flex-1 bg-slate-50 dark:bg-slate-700/50 border border-slate-200 dark:border-slate-700 rounded-xl p-3 text-xs font-bold outline-none"
+                                                />
+                                            </div>
+                                        </div>
+                                    )}
                                     {selectedCustomer && (
                                         <div className="mt-4 flex items-center justify-between p-4 bg-emerald-500/5 border border-emerald-500/20 rounded-2xl">
                                             <div className="flex items-center gap-3">

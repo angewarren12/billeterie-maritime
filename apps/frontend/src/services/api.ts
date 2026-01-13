@@ -392,6 +392,11 @@ export const apiService = {
         return response.data;
     },
 
+    createPosCustomer: async (data: { name: string; phone?: string; email?: string }) => {
+        const response = await api.post('/api/admin/pos/customers', data);
+        return response.data;
+    },
+
     startPosSession: async (data: { opening_amount: number; cash_desk_id: number }) => {
         const response = await api.post('/api/admin/pos/session/start', data);
         return response.data;
@@ -545,7 +550,7 @@ export const apiService = {
 
     async getCurrentUser() {
         const response = await api.get('/api/auth/me');
-        return response.data;
+        return response.data.data;
     },
 
     async updateProfile(data: { name?: string; phone?: string; email?: string; passenger_type?: string; nationality_group?: string }) {
@@ -587,6 +592,11 @@ export const apiService = {
 
     async getDashboardStats() {
         const response = await api.get('/api/admin/dashboard/stats');
+        return response.data;
+    },
+
+    async getCashierDashboardStats() {
+        const response = await api.get('/api/admin/dashboard/cashier-stats');
         return response.data;
     },
 

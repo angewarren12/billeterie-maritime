@@ -27,39 +27,42 @@ class TripController extends Controller
      */
     public function search(Request $request): JsonResponse
     {
-        $query = Trip::query();
+        // Génération d'une clé de cache unique basée sur les paramètres de recherche
+        $cacheKey = 'trips_search_' . md5(json_encode($request->all()));
 
-        // Filtre par statut (supporte plusieurs statuts séparés par des virgules)
-        if ($request->has('status')) {
-            $statuses = explode(',', $request->status);
-            $query->whereIn('status', $statuses);
-        } else {
-            $query->where('status', 'scheduled');
-        }
+        $result = \Illuminate\Support\Facades\Cache::remember($cacheKey, 300, function() use ($request) {
+            $query = Trip::query();
 
-        $query->where('departure_time', '>', now()) // Afficher uniquement les trajets futurs
-            ->with(['route.departurePort', 'route.arrivalPort', 'ship']);
+            // Filtre par statut (supporte plusieurs statuts séparés par des virgules)
+            if ($request->has('status')) {
+                $statuses = explode(',', $request->status);
+                $query->whereIn('status', $statuses);
+            } else {
+                $query->where('status', 'scheduled');
+            }
 
-        // Filtre par trajet
-        if ($request->has('route_id')) {
-            $query->where('route_id', $request->route_id);
-        }
+            // On ne montre que les trajets futurs pour éviter les résultats périmés
+            $query->where('departure_time', '>', now())
+                ->with(['route.departurePort', 'route.arrivalPort', 'ship']);
 
-        // Filtre par date
-        if ($request->has('date')) {
-            $query->whereDate('departure_time', $request->date);
-        }
+            // Filtres optionnels
+            if ($request->has('route_id')) {
+                $query->where('route_id', $request->route_id);
+            }
 
-        // Filtre par capacité minimale
-        if ($request->has('min_capacity')) {
-            $query->where('available_seats_pax', '>=', $request->min_capacity);
-        }
+            if ($request->has('date')) {
+                $query->whereDate('departure_time', $request->date);
+            }
 
-        $trips = $query->orderBy('departure_time')->get();
+            if ($request->has('min_capacity')) {
+                $query->where('available_seats_pax', '>=', $request->min_capacity);
+            }
 
+            $trips = $query->orderBy('departure_time')->get();
 
-        $result = $trips->map(function ($trip) {
-            return $this->formatTripResponse($trip);
+            return $trips->map(function ($trip) {
+                return $this->formatTripResponse($trip);
+            });
         });
 
         return response()->json([
@@ -77,16 +80,15 @@ class TripController extends Controller
      */
     public function show(Trip $trip): JsonResponse
     {
-        // Charger TOUTES les relations nécessaires AVANT le cache
-        $trip->load([
-            'route.departurePort', 
-            'route.arrivalPort', 
-            'ship'
-        ]);
-        
         $cacheKey = "trip_details_{$trip->id}";
         
         $tripData = \Illuminate\Support\Facades\Cache::remember($cacheKey, 600, function () use ($trip) {
+            // Charger les relations UNIQUEMENT si le cache expire
+            $trip->load([
+                'route.departurePort', 
+                'route.arrivalPort', 
+                'ship'
+            ]);
             return $this->formatTripResponse($trip, true);
         });
 

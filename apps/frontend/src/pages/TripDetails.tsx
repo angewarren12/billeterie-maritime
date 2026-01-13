@@ -30,6 +30,26 @@ export default function TripDetails() {
         ];
 
     const loadTripDetails = async () => {
+        // Try to load from cache first
+        const cacheKey = `trip_${id}`;
+        const returnCacheKey = returnTripId ? `trip_${returnTripId}` : null;
+
+        const cached = localStorage.getItem(cacheKey);
+        const returnCached = returnCacheKey ? localStorage.getItem(returnCacheKey) : null;
+
+        if (cached) {
+            try {
+                setTrip(JSON.parse(cached));
+                if (returnCached) {
+                    setReturnTrip(JSON.parse(returnCached));
+                }
+                setLoading(false);
+            } catch (e) {
+                console.error('Error parsing cached trip:', e);
+            }
+        }
+
+        // Fetch fresh data in background
         try {
             const [tripData, returnTripData] = await Promise.all([
                 apiService.getTrip(id!),
@@ -37,11 +57,19 @@ export default function TripDetails() {
             ]);
 
             setTrip(tripData);
+            localStorage.setItem(cacheKey, JSON.stringify(tripData));
+
             if (returnTripData) {
                 setReturnTrip(returnTripData);
+                if (returnCacheKey) {
+                    localStorage.setItem(returnCacheKey, JSON.stringify(returnTripData));
+                }
             }
         } catch (error) {
             console.error('Error loading trip details:', error);
+            if (!cached) {
+                setTrip(null);
+            }
         } finally {
             setLoading(false);
         }

@@ -36,13 +36,13 @@ Route::get('/public/booking/{reference}', [BookingController::class, 'showPublic
 // =============================
 
 // Hardware Device Scans (Fixed Turnstiles)
-Route::post('/device/scan', [App\Http\Controllers\Api\DeviceScanController::class, 'validate']);
+Route::post('/device/scan', [App\Http\Controllers\Api\DeviceScanController::class, 'scan']);
 
 // Authentification
 // Authentification - Rate limited
 Route::middleware('throttle:10,1')->prefix('auth')->group(function () {
     Route::post('/register', [AuthController::class, 'register']);
-    Route::post('/login', [AuthController::class, 'login']);
+    Route::post('/login', [AuthController::class, 'login'])->name('login');
 });
 
 // Routes maritimes
@@ -124,10 +124,10 @@ Route::prefix('admin')->middleware(['auth:sanctum'])->group(function () {
     Route::middleware(['role:super_admin|admin|manager'])->group(function () {
         Route::get('dashboard/stats', [\App\Http\Controllers\Api\Admin\DashboardController::class, 'stats']);
         
-        Route::apiResource('trips', \App\Http\Controllers\Api\Admin\TripController::class);
+        Route::apiResource('trips', \App\Http\Controllers\Api\Admin\TripController::class)->except(['index', 'show']);
         Route::post('trips/batch', [\App\Http\Controllers\Api\Admin\TripController::class, 'batchStore']);
         
-        Route::apiResource('ports', \App\Http\Controllers\Api\PortController::class);
+        Route::apiResource('ports', \App\Http\Controllers\Api\PortController::class)->except(['index', 'show']);
         Route::apiResource('ships', \App\Http\Controllers\Api\Admin\ShipController::class);
         Route::apiResource('routes', \App\Http\Controllers\Api\Admin\RouteController::class);
         
@@ -135,27 +135,43 @@ Route::prefix('admin')->middleware(['auth:sanctum'])->group(function () {
         Route::post('cash-desks/{cashDesk}/assign', [\App\Http\Controllers\Api\Admin\CashDeskController::class, 'assign']);
         Route::post('users/{user}/unassign-cash-desk', [\App\Http\Controllers\Api\Admin\CashDeskController::class, 'unassign']);
         
-        Route::apiResource('subscription-plans', \App\Http\Controllers\Api\Admin\SubscriptionPlanController::class);
-        Route::apiResource('subscriptions', \App\Http\Controllers\Api\Admin\SubscriptionController::class);
-        Route::post('subscriptions/{subscription}/associate-rfid', [\App\Http\Controllers\Api\Admin\SubscriptionController::class, 'associateRfid']);
+        Route::apiResource('subscription-plans', \App\Http\Controllers\Api\Admin\SubscriptionPlanController::class)->except(['index', 'show']);
+        Route::apiResource('subscriptions', \App\Http\Controllers\Api\Admin\SubscriptionController::class)->except(['index', 'show']);
         Route::put('subscriptions/{subscription}/status', [\App\Http\Controllers\Api\Admin\SubscriptionController::class, 'updateStatus']);
-        Route::post('subscriptions/{subscription}/deliver', [\App\Http\Controllers\Api\Admin\SubscriptionController::class, 'deliver']);
         
         Route::apiResource('users', \App\Http\Controllers\Api\Admin\UserController::class)->only(['index', 'show', 'store']);
+        
+        Route::apiResource('bookings', \App\Http\Controllers\Api\Admin\BookingController::class)->except(['index', 'show']);
     });
 
     // 2. POS OPERATIONS (Super Admin, Admin, Manager, Guichetier)
     Route::middleware(['role:super_admin|admin|manager|guichetier'])->group(function () {
+        Route::get('dashboard/cashier-stats', [\App\Http\Controllers\Api\Admin\DashboardController::class, 'cashierStats']);
         Route::post('pos/sale', [\App\Http\Controllers\Api\Admin\PosController::class, 'sale']);
         Route::get('pos/customers', [\App\Http\Controllers\Api\Admin\PosController::class, 'searchCustomer']);
+        Route::post('pos/customers', [\App\Http\Controllers\Api\Admin\PosController::class, 'storeCustomer']);
         Route::post('pos/session/start', [\App\Http\Controllers\Api\Admin\PosController::class, 'startSession']);
         Route::post('pos/session/close', [\App\Http\Controllers\Api\Admin\PosController::class, 'closeSession']);
         Route::get('pos/session/status', [\App\Http\Controllers\Api\Admin\PosController::class, 'sessionStatus']);
         Route::post('pos/subscription/sale', [\App\Http\Controllers\Api\Admin\PosController::class, 'saleSubscription']);
+        
+        // Subscription Management for POS
+        Route::post('subscriptions/{subscription}/associate-rfid', [\App\Http\Controllers\Api\Admin\SubscriptionController::class, 'associateRfid']);
+        Route::post('subscriptions/{subscription}/deliver', [\App\Http\Controllers\Api\Admin\SubscriptionController::class, 'deliver']);
+        Route::apiResource('subscriptions', \App\Http\Controllers\Api\Admin\SubscriptionController::class)->only(['index', 'show']);
+        
+        // Trips & Bookings for POS
+        Route::apiResource('trips', \App\Http\Controllers\Api\Admin\TripController::class)->only(['index', 'show']);
+        Route::apiResource('bookings', \App\Http\Controllers\Api\Admin\BookingController::class)->only(['index', 'show']);
+        
+        // Shared Resources
+        Route::apiResource('ports', \App\Http\Controllers\Api\PortController::class)->only(['index', 'show']);
+        Route::apiResource('subscription-plans', \App\Http\Controllers\Api\Admin\SubscriptionPlanController::class)->only(['index', 'show']);
     });
 
-    // 3. BOOKINGS MANAGEMENT (Super Admin, Admin, Manager, Guichetier, Comptable)
+    // 3. SHARED RESOURCES (Super Admin, Admin, Manager, Guichetier, Comptable)
     Route::middleware(['role:super_admin|admin|manager|guichetier|comptable'])->group(function () {
+        Route::apiResource('subscription-plans', \App\Http\Controllers\Api\Admin\SubscriptionPlanController::class)->only(['index', 'show']);
         Route::apiResource('bookings', \App\Http\Controllers\Api\Admin\BookingController::class)->only(['index', 'show']);
     });
 

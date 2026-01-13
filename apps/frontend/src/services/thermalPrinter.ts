@@ -37,6 +37,9 @@ export const thermalPrintService = {
     /**
      * Génère un rapport Z (Clôture)
      */
+    /**
+     * Génère un rapport Z (Clôture)
+     */
     printZReport: (data: ZReportData) => {
         const width = '80mm';
         const style = `
@@ -104,17 +107,42 @@ export const thermalPrintService = {
                     <br/><br/><br/>
                     _________________
                 </div>
-
-                <script>
-                    window.onload = function() { window.print(); setTimeout(function() { window.close(); }, 500); }
-                </script>
             </body>
             </html>
         `;
-        const printWindow = window.open('', '', 'width=400,height=600');
-        if (printWindow) {
-            printWindow.document.write(html);
-            printWindow.document.close();
+
+        thermalPrintService.printHtml(html);
+    },
+
+    /**
+     * Helper to print HTML using an iframe
+     */
+    printHtml: (html: string) => {
+        const iframeId = 'thermal-printer-frame';
+        let iframe = document.getElementById(iframeId) as HTMLIFrameElement;
+
+        if (!iframe) {
+            iframe = document.createElement('iframe');
+            iframe.id = iframeId;
+            iframe.style.position = 'fixed';
+            iframe.style.right = '0';
+            iframe.style.bottom = '0';
+            iframe.style.width = '0';
+            iframe.style.height = '0';
+            iframe.style.border = '0';
+            document.body.appendChild(iframe);
+        }
+
+        const doc = iframe.contentWindow?.document;
+        if (doc) {
+            doc.open();
+            doc.write(html);
+            doc.close();
+            // Wait for content to load then print
+            setTimeout(() => {
+                iframe.contentWindow?.focus();
+                iframe.contentWindow?.print();
+            }, 500);
         }
     },
 
@@ -201,24 +229,13 @@ export const thermalPrintService = {
                     </div>
                 </div>
                 
-                <script>
-                    window.onload = function() {
-                        window.print();
-                        setTimeout(function() { window.close(); }, 500);
-                    }
-                </script>
+                <div class="text-center" style="margin-top:20px; font-size:10px;">
+                    Imprimé le ${data.date}
+                </div>
             </body>
             </html>
         `;
 
-        // Ouvrir une fenêtre popup pour l'impression
-        const printWindow = window.open('', '', 'width=400,height=600');
-        if (printWindow) {
-            printWindow.document.write(html);
-            printWindow.document.close();
-        } else {
-            console.error("Impossible d'ouvrir la fenêtre d'impression. Vérifiez les bloqueurs de popups.");
-            alert("Veuillez autoriser les popups pour imprimer le ticket.");
-        }
+        thermalPrintService.printHtml(html);
     }
 };

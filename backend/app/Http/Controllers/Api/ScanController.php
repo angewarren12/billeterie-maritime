@@ -21,7 +21,7 @@ class ScanController extends Controller
      * 
      * POST /api/scan/validate
      */
-    public function validate(Request $request): JsonResponse
+    public function processScan(Request $request): JsonResponse
     {
         $validated = $request->validate([
             'qr_data' => 'required|string',

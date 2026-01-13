@@ -20,6 +20,7 @@ export default function Register() {
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         setError('');
+        console.log('Register attempt:', { name, email, phone });
 
         if (password !== confirmPassword) {
             setError("Les mots de passe ne correspondent pas.");
@@ -41,15 +42,18 @@ export default function Register() {
                 password,
                 password_confirmation: confirmPassword
             });
+            console.log('Register response:', response);
 
-            if (response.token && response.user) {
-                updateAuthState(response.token, response.user);
+            if (response.data) {
+                // Note: Laravel returns { data: user } for the web SPA
+                const user = response.data;
+                console.log('User registered successfully:', user);
                 alert("Compte créé avec succès ! Bienvenue.");
                 navigate('/mon-compte');
             }
         } catch (err: any) {
-            console.error('Registration error:', err);
-            setError(err.response?.data?.message || "Erreur lors de l'inscription. Vérifiez vos informations.",);
+            console.error('Registration error detail:', err.response?.data);
+            setError(err.response?.data?.message || "Erreur lors de l'inscription. Vérifiez vos informations.");
         } finally {
             setLoading(false);
         }

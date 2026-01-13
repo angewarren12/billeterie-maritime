@@ -15,13 +15,15 @@ export default function Login() {
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         setError('');
+        console.log('Login attempt for email:', email);
         setLoading(true);
 
         try {
-            await login(email, password);
+            const user = await login(email, password);
+            console.log('Login successful, user:', user);
             navigate('/mon-compte'); // Redirection vers le dashboard après login
         } catch (err: any) {
-            console.error('Login error:', err);
+            console.error('Login error detail:', err.response?.data);
             setError(err.response?.data?.message || "Email ou mot de passe incorrect.");
         } finally {
             setLoading(false);

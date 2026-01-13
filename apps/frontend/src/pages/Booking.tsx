@@ -21,7 +21,7 @@ interface PassengerInfo {
 export default function Booking() {
     const [searchParams] = useSearchParams();
     const navigate = useNavigate();
-    const { user, login, register } = useAuth();
+    const { user, login, register, logout } = useAuth();
 
     const tripId = searchParams.get('trip') || window.location.pathname.split('/').pop();
     const returnTripId = searchParams.get('return_trip_id');
@@ -276,6 +276,10 @@ export default function Booking() {
                     });
 
                     alert("Compte créé avec succès ! Bienvenue.");
+                    // Correction: On désactive le flag de création de compte car le compte est DÉJÀ créé.
+                    // Sinon l'API tente de le recréer lors du paiement final.
+                    setCreateAccount(false);
+                    setHasAccount(false); // On considère maintenant qu'il est connecté
                     setCurrentStep(2);
                 } catch (error: any) {
                     console.error("Registration error:", error);
@@ -460,6 +464,18 @@ export default function Booking() {
                                             </div>
                                         </div>
                                     )}
+
+                                    <div className="mt-4 text-center">
+                                        <button
+                                            onClick={() => {
+                                                logout();
+                                                setHasAccount(false); // Reset/Guest mode
+                                            }}
+                                            className="text-sm text-red-500 hover:text-red-700 font-bold underline decoration-2 underline-offset-4"
+                                        >
+                                            Se déconnecter / Changer de compte
+                                        </button>
+                                    </div>
                                 </div>
                             ) : (
                                 <>
@@ -918,6 +934,6 @@ export default function Booking() {
                     </div>
                 </div>
             </div>
-        </div>
+        </div >
     );
 }

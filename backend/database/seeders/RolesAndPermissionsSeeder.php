@@ -24,6 +24,8 @@ class RolesAndPermissionsSeeder extends Seeder
             'scan_qr_code', 'validate_boarding',
             // Gestion financière et guichets
             'view_any_payment', 'view_financial_reports', 'manage_cash_desks',
+            // POS
+            'pos.access', 'pos.sale', 'pos.session.close', 'pos.subscription.sale',
             // Gestion technique
             'view_any_user', 'manage_users', 'manage_roles',
         ];
@@ -54,6 +56,7 @@ class RolesAndPermissionsSeeder extends Seeder
         $guichetier->givePermissionTo([
             'view_any_booking', 'view_booking', 'create_booking', // Peut vendre
             'view_any_trip', // Pour voir les horaires
+            'pos.access', 'pos.sale', 'pos.session.close', 'pos.subscription.sale',
         ]);
 
         // AGENT EMBARQUEMENT (Validation)

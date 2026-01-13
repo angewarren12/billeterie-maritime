@@ -29,14 +29,13 @@ class BookingController extends Controller
         $userId = $request->user()->id;
         $cacheKey = "user_bookings_{$userId}";
         
-        // Charger les relations AVANT le cache
-        $bookings = Booking::where('user_id', $userId)
-            ->with(['trip.route.departurePort', 'trip.route.arrivalPort', 'tickets', 'transactions'])
-            ->orderBy('created_at', 'desc')
-            ->limit(50)
-            ->get();
-        
-        $result = \Illuminate\Support\Facades\Cache::remember($cacheKey, 300, function () use ($bookings) {
+        $result = \Illuminate\Support\Facades\Cache::remember($cacheKey, 300, function () use ($userId) {
+            $bookings = Booking::where('user_id', $userId)
+                ->with(['trip.route.departurePort', 'trip.route.arrivalPort', 'tickets', 'transactions'])
+                ->orderBy('created_at', 'desc')
+                ->limit(50)
+                ->get();
+
             return $bookings->map(function ($booking) {
                 return [
                     'id' => $booking->id,
@@ -479,13 +478,18 @@ class BookingController extends Controller
      */
     public function downloadPdf(Booking $booking)
     {
-        // Vérification de sécurité (Propriétaire ou Admin)
-        $user = \Illuminate\Support\Facades\Auth::guard('sanctum')->user();
+        // Vérification de sécurité améliorée
+        // 1. Si la réservation appartient à un utilisateur enregistré, il DOIT être authentifié et être le propriétaire (ou admin).
         if ($booking->user_id !== null) {
+            $user = \Illuminate\Support\Facades\Auth::guard('sanctum')->user();
             if (!$user || ($booking->user_id !== $user->id && $user->role !== 'admin')) {
                 return response()->json(['message' => 'Non autorisé'], 403);
             }
         }
+        
+        // 2. Si la réservation est "invité" (user_id === null), on autorise le téléchargement 
+        // car l'utilisateur possède l'URL avec l'UUID qui fait office de jeton de sécurité.
+        // C'est le comportement standard pour les e-billets.
 
         $booking->load(['tickets.trip.route.departurePort', 'tickets.trip.route.arrivalPort', 'tickets.trip.ship']);
 

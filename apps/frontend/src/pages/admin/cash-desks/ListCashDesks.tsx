@@ -22,6 +22,7 @@ export default function ListCashDesks() {
     const [agents, setAgents] = useState<User[]>([]);
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
+    const [assigning, setAssigning] = useState(false);
     const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
     const [showModal, setShowModal] = useState(false);
     const [showAssignModal, setShowAssignModal] = useState(false);
@@ -109,7 +110,7 @@ export default function ListCashDesks() {
                 toast.success("Guichet créé");
             }
             setShowModal(false);
-            await loadData();
+            await loadCashDesks();
         } catch (error) {
             toast.error("Erreur lors de l'enregistrement");
         } finally {
@@ -130,22 +131,33 @@ export default function ListCashDesks() {
 
     const handleAssign = async (e: React.FormEvent) => {
         e.preventDefault();
-        if (!selectedDesk || !assignData.user_id) return;
+        if (!selectedDesk) return;
+        if (!assignData.user_id) {
+            toast.error("Veuillez sélectionner un agent");
+            return;
+        }
+
+        setAssigning(true);
         try {
             await apiService.assignAgentToCashDesk(selectedDesk.id, assignData.user_id);
-            toast.success("Agent assigné");
+            toast.success("Agent assigné avec succès");
             setShowAssignModal(false);
-            loadData();
+            setAssignData({ user_id: '' });
+            await loadCashDesks();
         } catch (error) {
+            console.error('Erreur assignation:', error);
             toast.error("Erreur lors de l'assignation");
+        } finally {
+            setAssigning(false);
         }
     };
 
     const handleUnassign = async (userId: string | number) => {
+        if (!confirm("Retirer cet agent du guichet ?")) return;
         try {
             await apiService.unassignAgentFromCashDesk(userId);
             toast.success("Agent retiré");
-            loadData();
+            await loadCashDesks();
         } catch (error) {
             toast.error("Erreur");
         }
@@ -260,7 +272,7 @@ export default function ListCashDesks() {
                             <div className="pt-4 border-t border-gray-50 dark:border-white/5">
                                 <div className="flex justify-between items-center mb-3">
                                     <span className="text-[10px] font-black text-ocean-600 dark:text-ocean-400 uppercase tracking-widest">Agents Assignés</span>
-                                    {(user?.role === 'admin' || user?.role === 'super_admin' || user?.role === 'manager') && (
+                                    {(user?.role === 'admin' || user?.role === 'super_admin' || user?.role === 'manager') && (!desk.agents || desk.agents.length === 0) && (
                                         <button
                                             onClick={() => {
                                                 setSelectedDesk(desk);
@@ -327,7 +339,7 @@ export default function ListCashDesks() {
                                                     {agent.name.charAt(0)}
                                                 </div>
                                             ))}
-                                            {(user?.role === 'admin' || user?.role === 'super_admin' || user?.role === 'manager') && (
+                                            {(user?.role === 'admin' || user?.role === 'super_admin' || user?.role === 'manager') && (!desk.agents || desk.agents.length === 0) && (
                                                 <button
                                                     onClick={() => {
                                                         setSelectedDesk(desk);
@@ -489,8 +501,12 @@ export default function ListCashDesks() {
                                 </button>
                                 <button
                                     type="submit"
-                                    className="flex-1 bg-emerald-600 hover:bg-emerald-500 text-white px-6 py-3 rounded-2xl font-black uppercase text-xs tracking-widest transition-all shadow-lg shadow-emerald-500/20"
+                                    disabled={assigning}
+                                    className="flex-1 bg-emerald-600 hover:bg-emerald-500 text-white px-6 py-3 rounded-2xl font-black uppercase text-xs tracking-widest transition-all shadow-lg shadow-emerald-500/20 flex items-center justify-center gap-2"
                                 >
+                                    {assigning ? (
+                                        <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                                    ) : null}
                                     Confirmer
                                 </button>
                             </div>

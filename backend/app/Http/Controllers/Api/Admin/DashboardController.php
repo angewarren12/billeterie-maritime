@@ -11,6 +11,67 @@ use Carbon\Carbon;
 
 class DashboardController extends Controller
 {
+    public function cashierStats(Request $request)
+    {
+        $user = $request->user();
+        $today = Carbon::today();
+        $yesterday = Carbon::yesterday();
+
+        // Stats specific to the cashier
+        $revenueToday = Booking::where('created_at', '>=', $today)
+            ->where('status', 'confirmed')
+            ->where('user_id', $user->id) // Assuming user_id in bookings refers to the cashier if sold via POS
+            ->orWhere(function($query) use ($user, $today) {
+                $query->where('created_at', '>=', $today)
+                      ->where('status', 'confirmed')
+                      ->whereHas('cashSession', function($q) use ($user) {
+                          $q->where('user_id', $user->id);
+                      });
+            })
+            ->sum('total_amount') ?? 0;
+
+        $bookingsToday = Booking::where('created_at', '>=', $today)
+            ->where(function($query) use ($user) {
+                $query->where('user_id', $user->id)
+                      ->orWhereHas('cashSession', function($q) use ($user) {
+                          $q->where('user_id', $user->id);
+                      });
+            })
+            ->count() ?? 0;
+
+        // Statistics for yesterday for comparison
+        $revenueYesterday = Booking::where('created_at', '>=', $yesterday)
+            ->where('created_at', '<', $today)
+            ->where('status', 'confirmed')
+            ->where(function($query) use ($user) {
+                $query->where('user_id', $user->id)
+                      ->orWhereHas('cashSession', function($q) use ($user) {
+                          $q->where('user_id', $user->id);
+                      });
+            })
+            ->sum('total_amount') ?? 0;
+
+        $bookingsYesterday = Booking::where('created_at', '>=', $yesterday)
+            ->where('created_at', '<', $today)
+            ->where(function($query) use ($user) {
+                $query->where('user_id', $user->id)
+                      ->orWhereHas('cashSession', function($q) use ($user) {
+                          $q->where('user_id', $user->id);
+                      });
+            })
+            ->count() ?? 0;
+
+        return response()->json([
+            'revenue_today' => (float)$revenueToday,
+            'revenue_change' => $this->calculateChange((float)$revenueToday, (float)$revenueYesterday),
+            'bookings_today' => (int)$bookingsToday,
+            'bookings_change' => $this->calculateChange((int)$bookingsToday, (int)$bookingsYesterday),
+            'cashier_name' => $user->name,
+            'cash_desk' => $user->cashDesk ? $user->cashDesk->load('port') : null,
+            'timestamp' => now()->toIso8601String(),
+        ]);
+    }
+
     public function stats()
     {
         $start = microtime(true);

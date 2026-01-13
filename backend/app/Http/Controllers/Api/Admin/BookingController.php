@@ -14,6 +14,11 @@ class BookingController extends Controller
         $query = Booking::query()
             ->latest();
 
+        $user = $request->user();
+        if ($user->hasRole('guichetier')) {
+            $query->where('cash_desk_id', $user->cash_desk_id);
+        }
+
         // Si on demande les réservations pour le dashboard, on peut alléger le chargement
         $with = ['user', 'tickets', 'trip.route.departurePort', 'trip.route.arrivalPort', 'transactions'];
         $query->with($with);

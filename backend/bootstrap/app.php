@@ -24,7 +24,20 @@ return Application::configure(basePath: dirname(__DIR__))
             'permission' => \Spatie\Permission\Middleware\PermissionMiddleware::class,
             'role_or_permission' => \Spatie\Permission\Middleware\RoleOrPermissionMiddleware::class,
         ]);
+
+        // Empêcher la redirection vers une route 'login' qui n'existe pas en mode API
+        $middleware->redirectTo(
+            guests: '/connexion',
+            users: '/'
+        );
     })
     ->withExceptions(function (Exceptions $exceptions) {
-        //
+        // Forcer le JSON pour les erreurs d'authentification sur l'API
+        $exceptions->shouldRenderJsonWhen(function ($request, $e) {
+            if ($request->is('api/*')) {
+                return true;
+            }
+
+            return $request->expectsJson();
+        });
     })->create();

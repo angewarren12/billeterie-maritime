@@ -24,7 +24,7 @@ class DeviceScanController extends Controller
      * POST /api/device/scan
      * Header: X-Device-Token: [TOKEN]
      */
-    public function validate(Request $request): JsonResponse
+    public function scan(Request $request): JsonResponse
     {
         $token = $request->header('X-Device-Token');
         

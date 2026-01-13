@@ -12,6 +12,8 @@ import { apiService } from '../../services/api';
 import StatCard from '../../components/StatCard';
 import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
+import { useAuth } from '../../contexts/AuthContext';
+import CashierDashboard from './CashierDashboard';
 
 interface StatItem {
     name: string;
@@ -31,6 +33,7 @@ export default function AdminDashboard() {
     ]);
     const [recentBookings, setRecentBookings] = useState<any[]>([]);
     const [loadingBookings, setLoadingBookings] = useState(true);
+    const { user } = useAuth();
 
     useEffect(() => {
         const loadStats = async () => {
@@ -74,7 +77,7 @@ export default function AdminDashboard() {
                         color: 'from-orange-500 to-red-500'
                     },
                 ]);
-            } catch (err) {
+            } catch (err: any) {
                 console.error("❌ Stats error:", err);
             }
         };
@@ -85,23 +88,32 @@ export default function AdminDashboard() {
                 setLoadingBookings(true);
                 const bookingsData = await apiService.getAdminBookings({ page: 1, limit: 5 });
                 console.log(`📑 [Bookings] Reçu en ${Math.round(performance.now() - start)}ms`);
-                setRecentBookings(bookingsData.data.slice(0, 5));
+
+                const data = Array.isArray(bookingsData?.data) ? bookingsData.data : [];
+                setRecentBookings(data.slice(0, 5));
             } catch (err) {
                 console.error("❌ Bookings error:", err);
+                setRecentBookings([]);
             } finally {
                 setLoadingBookings(false);
             }
         };
 
-        console.log("📊 [Dashboard] Initialisation du chargement...");
-        loadStats();
+        if (user?.role && user.role !== 'guichetier') {
+            console.log("📊 [Dashboard] Initialisation du chargement...");
+            loadStats();
 
-        const timer = setTimeout(() => {
-            loadRecentBookings();
-        }, 800);
+            const timer = setTimeout(() => {
+                loadRecentBookings();
+            }, 800);
 
-        return () => clearTimeout(timer);
-    }, []);
+            return () => clearTimeout(timer);
+        }
+    }, [user]);
+
+    if (user?.role === 'guichetier') {
+        return <CashierDashboard />;
+    }
 
     return (
         <div className="space-y-8 pb-12">
@@ -192,7 +204,7 @@ export default function AdminDashboard() {
                     </div>
                 </div>
 
-                {/* Left side actions - 1/3 width */}
+                {/* Right side actions - 1/3 width */}
                 <div className="space-y-6">
                     <div className="bg-gradient-to-br from-ocean-600 to-ocean-700 rounded-[2.5rem] p-8 text-white shadow-xl shadow-ocean-200 dark:shadow-none relative overflow-hidden group">
                         <div className="absolute top-0 right-0 w-32 h-32 bg-white/10 rounded-full -mr-16 -mt-16 blur-2xl group-hover:scale-150 transition-transform duration-700"></div>

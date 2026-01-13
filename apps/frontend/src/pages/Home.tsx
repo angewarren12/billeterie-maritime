@@ -303,7 +303,7 @@ export default function Home() {
 
                             <div className="flex items-center gap-8 w-full lg:w-auto border-t lg:border-t-0 pt-6 lg:pt-0">
                                 <div className="text-right flex-1 lg:flex-none">
-                                    <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1">Prix Total</p>
+                                    <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1">Prix Total a partir de</p>
                                     <p className="text-3xl lg:text-4xl font-black text-gray-900">
                                         {(Number(selectedOutward?.base_price || 0) + Number(selectedReturn?.base_price || 0)).toLocaleString()} <span className="text-sm font-bold text-gray-400">FCFA</span>
                                     </p>

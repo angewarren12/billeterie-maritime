@@ -2,21 +2,44 @@ import { useEffect, useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { apiService } from '../services/api';
 import { CheckCircleIcon, TicketIcon, CalendarIcon, ArrowLeftIcon, ArrowDownTrayIcon } from '@heroicons/react/24/outline';
+import { useAuth } from '../features/auth/hooks/useAuth';
 
 const Confirmation = () => {
     const { id } = useParams<{ id: string }>();
     const [booking, setBooking] = useState<any>(null);
     const [loading, setLoading] = useState(true);
     const [downloading, setDownloading] = useState(false);
+    const { isLogged } = useAuth();
+
 
     useEffect(() => {
         const fetchBooking = async () => {
             if (!id) return;
+
+            // Try to load from cache first for instant display
+            const cacheKey = `booking_${id}`;
+            const cached = localStorage.getItem(cacheKey);
+            if (cached) {
+                try {
+                    setBooking(JSON.parse(cached));
+                    setLoading(false);
+                } catch (e) {
+                    console.error("Error parsing cached booking:", e);
+                }
+            }
+
+            // Then fetch fresh data in background
             try {
                 const response = await apiService.getBooking(id);
                 setBooking(response.data);
+                // Update cache
+                localStorage.setItem(cacheKey, JSON.stringify(response.data));
             } catch (error) {
                 console.error("Error fetching booking details:", error);
+                // If we have cache, keep showing it
+                if (!cached) {
+                    setBooking(null);
+                }
             } finally {
                 setLoading(false);
             }
@@ -228,16 +251,23 @@ const Confirmation = () => {
                             </button>
                         </div>
 
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                            <Link to="/" className="btn-secondary py-3 flex items-center justify-center gap-2">
+                        {isLogged ? (
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                <Link to="/" className="btn-secondary py-3 flex items-center justify-center gap-2">
+                                    <ArrowLeftIcon className="w-5 h-5" />
+                                    Retour à l'accueil
+                                </Link>
+                                <Link to="/mon-compte" className="btn-primary py-3 flex items-center justify-center gap-2 shadow-lg shadow-ocean-200">
+                                    Consulter mon compte
+                                    <TicketIcon className="w-5 h-5" />
+                                </Link>
+                            </div>
+                        ) : (
+                            <Link to="/" className="btn-secondary py-3 flex items-center justify-center gap-2 w-full">
                                 <ArrowLeftIcon className="w-5 h-5" />
                                 Retour à l'accueil
                             </Link>
-                            <Link to="/mon-compte" className="btn-primary py-3 flex items-center justify-center gap-2 shadow-lg shadow-ocean-200">
-                                Consulter mon compte
-                                <TicketIcon className="w-5 h-5" />
-                            </Link>
-                        </div>
+                        )}
                     </div>
                 </div>
 

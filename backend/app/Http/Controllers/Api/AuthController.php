@@ -11,27 +11,42 @@ class AuthController extends Controller
 {
     public function register(Request $request)
     {
-        $validated = $request->validate([
-            'name' => 'required|string|max:255',
-            'email' => 'required|string|email|max:255|unique:users',
-            'password' => 'required|string|min:8',
-        ]);
+        \Illuminate\Support\Facades\Log::info('Registration attempt:', $request->except(['password', 'password_confirmation']));
+        
+        try {
+            $validated = $request->validate([
+                'name' => 'required|string|max:255',
+                'email' => 'required|string|email|max:255|unique:users',
+                'phone' => 'nullable|string|max:20',
+                'password' => 'required|string|min:8',
+            ]);
 
-        $user = User::create([
-            'name' => $validated['name'],
-            'email' => $validated['email'],
-            'password' => bcrypt($validated['password']),
-        ]);
+            $user = User::create([
+                'name' => $validated['name'],
+                'email' => $validated['email'],
+                'phone' => $validated['phone'] ?? null,
+                'password' => bcrypt($validated['password']),
+            ]);
 
-        // Auto login after register
-        Auth::login($user);
-        $request->session()->regenerate();
+            \Illuminate\Support\Facades\Log::info('User created:', ['id' => $user->id, 'email' => $user->email]);
 
-        return response()->json(['data' => $user], 201);
+            // Auto login after register
+            Auth::login($user);
+            $request->session()->regenerate();
+
+            \Illuminate\Support\Facades\Log::info('User logged in after registration:', ['id' => $user->id]);
+
+            return response()->json(['data' => $user], 201);
+        } catch (\Exception $e) {
+            \Illuminate\Support\Facades\Log::error('Registration failed:', ['error' => $e->getMessage()]);
+            throw $e;
+        }
     }
 
     public function login(Request $request)
     {
+        \Illuminate\Support\Facades\Log::info('Login attempt:', $request->except(['password']));
+
         $credentials = $request->validate([
             'email' => ['required', 'email'],
             'password' => ['required'],
@@ -40,6 +55,8 @@ class AuthController extends Controller
         if (Auth::attempt($credentials)) {
             $user = Auth::user();
             $request->session()->regenerate();
+
+            \Illuminate\Support\Facades\Log::info('Login successful:', ['id' => $user->id, 'email' => $user->email]);
 
             // Mobile Agent: Return Token
             if ($request->header('X-Platform') === 'mobile') {
@@ -51,6 +68,8 @@ class AuthController extends Controller
             return response()->json(['data' => $user]);
         }
 
+        \Illuminate\Support\Facades\Log::warning('Login failed for email:', ['email' => $request->email]);
+
         return response()->json([
             'message' => 'The provided credentials do not match our records.',
         ], 401);
@@ -58,9 +77,14 @@ class AuthController extends Controller
 
     public function logout(Request $request)
     {
+        $userId = Auth::id();
+        \Illuminate\Support\Facades\Log::info('Logout attempt for user:', ['id' => $userId]);
+
         Auth::logout();
         $request->session()->invalidate();
         $request->session()->regenerateToken();
+
+        \Illuminate\Support\Facades\Log::info('Logout successful for user:', ['id' => $userId]);
 
         return response()->json(['message' => 'Logged out']);
     }
@@ -68,12 +92,7 @@ class AuthController extends Controller
     public function me(Request $request)
     {
         $user = $request->user();
-        $cacheKey = "user_me_{$user->id}";
-        
-        $userData = \Illuminate\Support\Facades\Cache::remember($cacheKey, 60, function() use ($user) {
-            return $user->load(['roles', 'permissions']); // Aggressive loading for auth check
-        });
-
-        return response()->json(['data' => $userData]);
+        // Charger le guichet et le port pour le POS
+        return response()->json(['data' => $user->load(['roles', 'permissions', 'cashDesk.port'])]);
     }
 }

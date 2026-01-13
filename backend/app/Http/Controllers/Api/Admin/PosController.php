@@ -142,13 +142,46 @@ class PosController extends Controller
         $q = $request->query('q');
         if (strlen($q) < 2) return response()->json([]);
 
-        $users = User::where('name', 'like', "%{$q}%")
-            ->orWhere('email', 'like', "%{$q}%")
-            ->orWhere('phone', 'like', "%{$q}%")
+        $users = User::where(function($query) use ($q) {
+                $query->where('name', 'like', "{$q}%")
+                      ->orWhere('phone', 'like', "{$q}%")
+                      ->orWhere('email', 'like', "{$q}%");
+            })
             ->limit(10)
             ->get(['id', 'name', 'email', 'phone']);
 
         return response()->json($users);
+    }
+
+    /**
+     * Créer un nouveau client depuis le POS
+     */
+    public function storeCustomer(Request $request): JsonResponse
+    {
+        if (!$request->user()->can('pos.access')) {
+            return response()->json(['message' => 'Non autorisé'], 403);
+        }
+
+        $validated = $request->validate([
+            'name' => 'required|string|max:255',
+            'phone' => 'nullable|string|max:20',
+            'email' => 'nullable|email|unique:users,email',
+        ]);
+
+        $user = User::create([
+            'name' => $validated['name'],
+            'phone' => $validated['phone'] ?? null,
+            'email' => $validated['email'] ?? 'guest_' . Str::random(8) . '@maritime.sn',
+            'password' => bcrypt('password'), // Mot de passe par défaut
+            'role' => 'client',
+        ]);
+
+        $user->assignRole('client');
+
+        return response()->json([
+            'status' => 'success',
+            'data' => $user
+        ]);
     }
 
     /**
@@ -306,14 +339,15 @@ class PosController extends Controller
             $session->increment('expected_amount', $plan->price);
 
             // 4. Créer une transaction (Optionnel mais recommandé pour la traçabilité)
-            \App\Models\Transaction::create([
-                'user_id' => $validated['user_id'],
-                'amount' => $plan->price,
-                'type' => 'subscription_purchase',
-                'payment_method' => $validated['payment_method'],
-                'status' => 'completed',
-                'reference' => 'SUB-' . $subscription->id,
-            ]);
+            // 4. Créer une transaction (Optionnel mais recommandé pour la traçabilité)
+            // \App\Models\Transaction::create([
+            //     'user_id' => $validated['user_id'],
+            //     'amount' => $plan->price,
+            //     'type' => 'subscription_purchase',
+            //     'payment_method' => $validated['payment_method'],
+            //     'status' => 'completed',
+            //     'reference' => 'SUB-' . $subscription->id,
+            // ]);
 
             DB::commit();
 
