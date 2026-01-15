@@ -14,31 +14,29 @@ class RouteController extends Controller
      */
     public function index(Request $request): JsonResponse
     {
-        $routes = \Illuminate\Support\Facades\Cache::remember('active_routes_list', 3600, function () {
-            return Route::where('is_active', true)
-                ->with(['departurePort:id,name,code,city', 'arrivalPort:id,name,code,city'])
-                ->get()
-                ->map(function ($route) {
-                    return [
-                        'id' => $route->id,
-                        'name' => $route->name,
-                        'departure_port' => $route->departurePort ? [
-                            'id' => $route->departurePort->id,
-                            'name' => $route->departurePort->name,
-                            'code' => $route->departurePort->code,
-                            'city' => $route->departurePort->city,
-                        ] : null,
-                        'arrival_port' => $route->arrivalPort ? [
-                            'id' => $route->arrivalPort->id,
-                            'name' => $route->arrivalPort->name,
-                            'code' => $route->arrivalPort->code,
-                            'city' => $route->arrivalPort->city,
-                        ] : null,
-                        'duration_minutes' => $route->duration_minutes,
-                        'distance_km' => $route->distance_km,
-                    ];
-                });
-        });
+        $routes = Route::where('is_active', true)
+            ->with(['departurePort:id,name,code,city', 'arrivalPort:id,name,code,city'])
+            ->get()
+            ->map(function ($route) {
+                return [
+                    'id' => $route->id,
+                    'name' => $route->name,
+                    'departure_port' => $route->departurePort ? [
+                        'id' => $route->departurePort->id,
+                        'name' => $route->departurePort->name,
+                        'code' => $route->departurePort->code,
+                        'city' => $route->departurePort->city,
+                    ] : null,
+                    'arrival_port' => $route->arrivalPort ? [
+                        'id' => $route->arrivalPort->id,
+                        'name' => $route->arrivalPort->name,
+                        'code' => $route->arrivalPort->code,
+                        'city' => $route->arrivalPort->city,
+                    ] : null,
+                    'duration_minutes' => $route->duration_minutes,
+                    'distance_km' => $route->distance_km,
+                ];
+            });
 
         return response()->json([
             'routes' => $routes

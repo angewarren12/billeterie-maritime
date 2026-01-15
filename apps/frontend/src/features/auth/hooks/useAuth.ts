@@ -4,6 +4,13 @@ import api from '@/lib/axios'; // Adjust path if needed or use relative
 export const useAuth = () => {
 
     const { data: user, error, mutate, isLoading: swrIsLoading } = useSWR('/api/auth/me', () => {
+        // Ne pas fetcher si on est en train de se déconnecter
+        if (sessionStorage.getItem('logging_out') === 'true') {
+            console.log('SWR: Logout in progress, skipping fetch');
+            sessionStorage.removeItem('logging_out');
+            return null;
+        }
+
         console.log('SWR: Fetching user...');
         return api.get('/api/auth/me')
             .then(res => {
@@ -23,6 +30,7 @@ export const useAuth = () => {
         revalidateOnReconnect: false,
         shouldRetryOnError: false,
     });
+
 
     const csrf = () => api.get('/sanctum/csrf-cookie');
 
@@ -75,25 +83,33 @@ export const useAuth = () => {
 
     const logout = async () => {
         console.log('Logout: Starting process...');
-        // 1. Vider le state SWR immédiatement
+
+        try {
+            // 1. Appeler le serveur FIRST pour invalider la session (Cookie)
+            await api.post('/api/auth/logout');
+            console.log('Logout: API success - session invalidated');
+        } catch (error) {
+            console.error('Logout: API error:', error);
+            // Continue anyway to clear local state
+        }
+
+        // 2. Vider le state SWR localement
         await mutate(null, false);
         console.log('Logout: Local state cleared');
 
-        // 2. Nettoyer le stockage local au cas où un token y resterait
+        // 3. Nettoyer TOUT le stockage local
         localStorage.clear();
+        sessionStorage.clear();
 
-        try {
-            // 3. Appeler le serveur pour invalider la session (Cookie)
-            await api.post('/api/auth/logout');
-            console.log('Logout: API success');
-        } catch (error) {
-            console.error('Logout: API error:', error);
-        }
+        // 4. Marquer qu'on est en train de se déconnecter pour éviter la revalidation
+        sessionStorage.setItem('logging_out', 'true');
 
         console.log('Logout: Redirecting to /connexion');
-        // 4. Redirection propre et forcée
+
+        // 5. Redirection forcée avec rechargement complet
         window.location.href = '/connexion';
     };
+
 
     return {
         user,

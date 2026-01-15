@@ -88,8 +88,19 @@ export default function AdminDashboard() {
                 setLoadingBookings(true);
                 const bookingsData = await apiService.getAdminBookings({ page: 1, limit: 5 });
                 console.log(`📑 [Bookings] Reçu en ${Math.round(performance.now() - start)}ms`);
+                console.log('📦 [Bookings] Raw data:', bookingsData);
 
-                const data = Array.isArray(bookingsData?.data) ? bookingsData.data : [];
+                // Laravel pagination returns: { data: { data: [...], current_page, ... } }
+                let data = [];
+                if (bookingsData?.data?.data && Array.isArray(bookingsData.data.data)) {
+                    data = bookingsData.data.data;
+                } else if (Array.isArray(bookingsData?.data)) {
+                    data = bookingsData.data;
+                } else if (Array.isArray(bookingsData)) {
+                    data = bookingsData;
+                }
+
+                console.log('📋 [Bookings] Extracted bookings:', data.length, 'items');
                 setRecentBookings(data.slice(0, 5));
             } catch (err) {
                 console.error("❌ Bookings error:", err);
@@ -98,6 +109,7 @@ export default function AdminDashboard() {
                 setLoadingBookings(false);
             }
         };
+
 
         if (user?.role && user.role !== 'guichetier') {
             console.log("📊 [Dashboard] Initialisation du chargement...");
@@ -193,9 +205,11 @@ export default function AdminDashboard() {
                                     <div className="w-20 h-20 bg-gray-50 dark:bg-gray-700/50 rounded-full flex items-center justify-center mx-auto mb-4 text-gray-300">
                                         <TicketIcon className="w-10 h-10" />
                                     </div>
-                                    <p className="text-gray-500 dark:text-gray-400 font-bold">Aucune réservation aujourd'hui.</p>
+                                    <p className="text-gray-500 dark:text-gray-400 font-bold">Aucune réservation récente.</p>
+                                    <p className="text-gray-400 dark:text-gray-500 text-sm mt-2">Les nouvelles réservations apparaîtront ici.</p>
                                 </div>
                             )}
+
                         </div>
 
                         <button className="w-full mt-8 py-5 border-2 border-dashed border-gray-100 dark:border-gray-700 rounded-3xl text-gray-400 font-black hover:border-ocean-300 hover:text-ocean-500 hover:bg-ocean-50/50 dark:hover:bg-ocean-900/10 transition-all uppercase tracking-widest text-xs">

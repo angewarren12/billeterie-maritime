@@ -1,0 +1,13 @@
+<IfModule mod_rewrite.c>
+  RewriteEngine On
+  RewriteBase /
+
+  # Redirection des requêtes API vers le dossier backend/public (situe à la racine)
+  RewriteRule ^api/(.*)$ backend/public/index.php [QSA,L]
+
+  # Routage pour React SPA
+  RewriteRule ^index\.html$ - [L]
+  RewriteCond %{REQUEST_FILENAME} !-f
+  RewriteCond %{REQUEST_FILENAME} !-d
+  RewriteRule . /index.html [L]
+</IfModule>

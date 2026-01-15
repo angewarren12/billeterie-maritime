@@ -8,7 +8,7 @@ import {
     UserIcon,
     ClockIcon,
     ChevronLeftIcon,
-    MapPinIcon,
+
     CreditCardIcon,
     IdentificationIcon,
     CheckCircleIcon,

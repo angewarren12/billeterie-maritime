@@ -28,12 +28,8 @@ export default function ListRoutes() {
     }, []);
 
     const loadRoutes = async () => {
-        const start = performance.now();
-        setLoading(true);
         try {
             const data = await apiService.getAdminRoutes();
-            const totalTime = Math.round(performance.now() - start);
-            console.log(`🗺️ [Routes] Chargé en ${totalTime}ms (Backend: ${data.internal_time_ms}ms)`);
             setRoutes(data.data || []);
         } catch (error) {
             console.error("Failed to load routes", error);
@@ -154,7 +150,7 @@ export default function ListRoutes() {
                                             <button onClick={() => handleEdit(route)} className="p-2 text-gray-400 hover:text-ocean-500 hover:bg-ocean-50 dark:hover:bg-ocean-900/30 rounded-lg transition-all">
                                                 <PencilIcon className="w-5 h-5" />
                                             </button>
-                                            <button onClick={() => handleDelete(route.id)} className="p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/30 rounded-lg transition-all">
+                                            <button onClick={() => handleDelete(route.id as any)} className="p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/30 rounded-lg transition-all">
                                                 <TrashIcon className="w-5 h-5" />
                                             </button>
                                         </div>
@@ -236,7 +232,7 @@ export default function ListRoutes() {
                                                     <button onClick={() => handleEdit(route)} className="p-2 text-gray-400 hover:text-ocean-500 transition-all">
                                                         <PencilIcon className="w-5 h-5" />
                                                     </button>
-                                                    <button onClick={() => handleDelete(route.id)} className="p-2 text-gray-400 hover:text-red-500 transition-all">
+                                                    <button onClick={() => handleDelete(route.id as any)} className="p-2 text-gray-400 hover:text-red-500 transition-all">
                                                         <TrashIcon className="w-5 h-5" />
                                                     </button>
                                                 </div>

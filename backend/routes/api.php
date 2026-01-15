@@ -18,6 +18,10 @@ Route::get('/fast-ping', function () {
     return 'pong';
 });
 
+Route::get('/test', function () {
+    return response()->json(['message' => 'API is working']);
+});
+
 // Health Check
 Route::get('/health', function () {
     return response()->json([
@@ -50,6 +54,9 @@ Route::prefix('routes')->group(function () {
     Route::get('/', [RouteController::class, 'index']);
     Route::get('/{route}', [RouteController::class, 'show']);
 });
+
+// Ports (Villes/Villes de départ) - Public
+Route::get('/ports', [App\Http\Controllers\Api\PortController::class, 'index']);
 
 // Trips (Traversées)
 Route::prefix('trips')->group(function () {
@@ -180,6 +187,16 @@ Route::prefix('admin')->middleware(['auth:sanctum'])->group(function () {
         Route::get('reports/sales', [\App\Http\Controllers\Api\Admin\ReportController::class, 'sales']);
         Route::get('reports/cash-desk/{cashDesk}/stats', [\App\Http\Controllers\Api\Admin\ReportController::class, 'cashDeskStats']);
         Route::get('reports/manifest/{trip}', [\App\Http\Controllers\Api\Admin\ReportController::class, 'manifest']);
+    });
+
+    // 6. SUPERVISOR OPERATIONS
+    Route::middleware(['role:super_admin|admin|manager|superviseur_gare'])->group(function () {
+         Route::group(['prefix' => 'supervisor', 'as' => 'supervisor.', 'middleware' => ['permission:supervisor.view_dashboard']], function () {
+            Route::get('/dashboard', [\App\Http\Controllers\Api\Admin\SupervisorController::class, 'dashboard']);
+            Route::get('/cash-desks', [\App\Http\Controllers\Api\Admin\SupervisorController::class, 'cashDesks']);
+            Route::post('/cash-desks/{id}/close', [\App\Http\Controllers\Api\Admin\SupervisorController::class, 'closeCashDesk']);
+            Route::get('/sales-history', [\App\Http\Controllers\Api\Admin\SupervisorController::class, 'salesHistory']);
+        });
     });
 
     // 5. SECURITY & LOGS (Super Admin, Admin, Manager, Agent Embarquement)

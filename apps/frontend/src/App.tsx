@@ -3,6 +3,7 @@ import { BrowserRouter as Router, Routes, Route, useLocation } from 'react-route
 import { Toaster } from 'react-hot-toast';
 import Header from './components/Header';
 import Footer from './components/Footer';
+import BottomNav from './components/BottomNav';
 
 // Lazy loading pages
 const Home = lazy(() => import('./pages/Home'));
@@ -15,6 +16,8 @@ const ClientBookingDetail = lazy(() => import('./pages/ClientBookingDetail'));
 const PublicTicket = lazy(() => import('./pages/PublicTicket'));
 const Login = lazy(() => import('./pages/Login'));
 const Register = lazy(() => import('./pages/Register'));
+const Trajets = lazy(() => import('./pages/Trajets'));
+
 
 // Public Pages
 const DeparturesDisplay = lazy(() => import('./pages/public/DeparturesDisplay'));
@@ -38,6 +41,7 @@ const Reports = lazy(() => import('./pages/admin/reports/Reports'));
 const POSDashboard = lazy(() => import('./pages/admin/pos/POSDashboard'));
 const AccessMonitoring = lazy(() => import('./pages/admin/ports/AccessMonitoring'));
 const ListCashDesks = lazy(() => import('./pages/admin/cash-desks/ListCashDesks'));
+const SupervisorDashboard = lazy(() => import('./pages/admin/SupervisorDashboard'));
 
 import ProtectedRoute from './components/ProtectedRoute';
 
@@ -72,12 +76,13 @@ const LayoutWrapper = ({ children }: { children: React.ReactNode }) => {
   return (
     <div className={`flex flex-col min-h-screen ${isAdmin ? 'bg-gray-100' : 'bg-gray-50/50'}`}>
       {!isAdmin && <Header />}
-      <main className={isAdmin ? '' : 'flex-1'}>
+      <main className={`${isAdmin ? '' : 'flex-1'} ${!isAdmin ? 'pb-20 md:pb-0' : ''}`}>
         {children}
       </main>
       {!isAdmin && (
         <>
           <Footer />
+          <BottomNav />
           <Toaster
             position="bottom-right"
             toastOptions={{
@@ -112,6 +117,7 @@ function App() {
             <Suspense fallback={<LoadingFallback />}>
               <Routes>
                 <Route path="/" element={<Home />} />
+                <Route path="/trajets" element={<Suspense fallback={<LoadingFallback />}><Trajets /></Suspense>} />
                 <Route path="/voyage/:id" element={<TripDetails />} />
                 <Route path="/reserver" element={<Booking />} />
                 <Route path="/confirmation/:id" element={<Confirmation />} />
@@ -158,6 +164,7 @@ function App() {
                   <Route path="reports" element={<Reports />} />
                   <Route path="pos" element={<POSDashboard />} />
                   <Route path="monitoring" element={<AccessMonitoring />} />
+                  <Route path="supervisor/dashboard" element={<SupervisorDashboard />} />
                 </Route>
               </Routes>
             </Suspense>

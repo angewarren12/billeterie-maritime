@@ -2,11 +2,10 @@ import { useState } from 'react';
 import {
     XMarkIcon,
     CreditCardIcon,
-    MapPinIcon,
-    TruckIcon,
     HomeIcon,
     CheckCircleIcon,
-    ArrowRightIcon
+    ArrowRightIcon,
+    TruckIcon
 } from '@heroicons/react/24/outline';
 import { apiService } from '../services/api';
 
@@ -187,10 +186,7 @@ const SubscriptionCheckoutModal = ({ plan, onClose, onSuccess }: SubscriptionChe
                                 <div className="grid grid-cols-2 gap-4">
                                     <button
                                         onClick={() => setPaymentMethod('orange_money')}
-                                        className={`p-6 border-2 rounded-2xl transition-all duration-300 ${paymentMethod === 'orange_money'
-                                                ? 'border-orange-500 bg-gradient-to-br from-orange-50 to-orange-100 shadow-xl shadow-orange-200 scale-105'
-                                                : 'border-gray-200 hover:border-orange-300 hover:shadow-lg'
-                                            }`}
+                                        className={`p-6 border-2 rounded-2xl transition-all duration-300 ${paymentMethod === 'orange_money' ? 'border-orange-500 bg-gradient-to-br from-orange-50 to-orange-100 shadow-xl shadow-orange-200 scale-105' : 'border-gray-200 hover:border-orange-300 hover:shadow-lg'}`}
                                     >
                                         <div className="flex flex-col items-center gap-3">
                                             <img src="/orange-money-logo.png" alt="Orange Money" className="h-12 object-contain" />
@@ -200,10 +196,7 @@ const SubscriptionCheckoutModal = ({ plan, onClose, onSuccess }: SubscriptionChe
 
                                     <button
                                         onClick={() => setPaymentMethod('wave')}
-                                        className={`p-6 border-2 rounded-2xl transition-all duration-300 ${paymentMethod === 'wave'
-                                                ? 'border-blue-500 bg-gradient-to-br from-blue-50 to-blue-100 shadow-xl shadow-blue-200 scale-105'
-                                                : 'border-gray-200 hover:border-blue-300 hover:shadow-lg'
-                                            }`}
+                                        className={`p-6 border-2 rounded-2xl transition-all duration-300 ${paymentMethod === 'wave' ? 'border-blue-500 bg-gradient-to-br from-blue-50 to-blue-100 shadow-xl shadow-blue-200 scale-105' : 'border-gray-200 hover:border-blue-300 hover:shadow-lg'}`}
                                     >
                                         <div className="flex flex-col items-center gap-3">
                                             <img src="/wave-logo.png" alt="Wave" className="h-12 object-contain" />

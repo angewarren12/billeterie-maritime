@@ -64,7 +64,6 @@ export default function ListTrips() {
 
     const loadTrips = async (showLoading = true) => {
         if (showLoading) setLoading(true); // Only show spinner on manual filters
-        const start = performance.now();
         try {
             const data = await apiService.getAdminTrips({
                 status: statusFilter,
@@ -72,8 +71,6 @@ export default function ListTrips() {
                 page: currentPage,
                 search: searchQuery
             });
-            const totalTime = Math.round(performance.now() - start);
-            console.log(`📅 [Trips] Refresh ${showLoading ? 'Manual' : 'Auto'} en ${totalTime}ms`);
             setTrips(data.data || []);
             if (data.meta) {
                 setTotalPages(data.meta.last_page);
@@ -346,7 +343,7 @@ export default function ListTrips() {
                                                 )}
                                                 {(user?.role === 'admin' || user?.role === 'super_admin' || user?.role === 'manager') && (
                                                     <button
-                                                        onClick={() => handleDelete(trip.id)}
+                                                        onClick={() => handleDelete(trip.id as any)}
                                                         className="p-2.5 bg-red-50 text-red-600 rounded-xl hover:bg-red-600 hover:text-white transition-all shadow-sm"
                                                     >
                                                         <TrashIcon className="w-5 h-5" />
@@ -435,7 +432,7 @@ export default function ListTrips() {
                                                 </span>
                                                 {(user?.role === 'admin' || user?.role === 'super_admin' || user?.role === 'manager') && (
                                                     <button
-                                                        onClick={() => handleDelete(trip.id)}
+                                                        onClick={() => handleDelete(trip.id as any)}
                                                         className="p-2 text-gray-400 hover:text-red-500 transition-colors"
                                                     >
                                                         <TrashIcon className="w-5 h-5" />

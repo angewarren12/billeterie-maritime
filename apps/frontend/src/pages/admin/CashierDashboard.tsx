@@ -3,12 +3,10 @@ import { Dialog, Transition } from '@headlessui/react';
 import {
     BanknotesIcon,
     TicketIcon,
-    ArrowPathIcon,
     BuildingStorefrontIcon,
     ClockIcon,
     ChevronRightIcon,
     XMarkIcon,
-    MapPinIcon,
     CalendarIcon
 } from '@heroicons/react/24/outline';
 import { apiService } from '../../services/api';
@@ -82,8 +80,7 @@ export default function CashierDashboard() {
         try {
             const response = await apiService.getAdminTrips({
                 departure_port_id: cashDesk.port_id,
-                status: 'scheduled',
-                per_page: 50
+                status: 'scheduled'
             });
             // Filter trips only for today in JS if API doesn't support date filtering easily
             const todayStr = format(new Date(), 'yyyy-MM-dd');

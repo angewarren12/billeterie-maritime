@@ -58,6 +58,7 @@ export interface Ship {
     images?: string[];
 }
 
+
 export interface User {
     id: number;
     name: string;
@@ -125,7 +126,9 @@ export interface Route {
     };
     duration_minutes: number;
     distance_km?: number;
+    is_active?: boolean;
 }
+
 
 export interface Trip {
     id: number;
@@ -235,10 +238,7 @@ export const apiService = {
     },
     // Routes
     async getRoutes(): Promise<{ routes: Route[] }> {
-        const cached = getFromCache('public_routes');
-        if (cached) return cached;
         const response = await api.get('/api/routes');
-        setToCache('public_routes', response.data);
         return response.data;
     },
 
@@ -455,14 +455,10 @@ export const apiService = {
 
     // Admin Ports
     getPorts: async (): Promise<Port[]> => {
-        const cached = getFromCache('admin_ports');
-        if (cached && Array.isArray(cached)) return cached;
-
-        const response = await api.get('/api/admin/ports');
+        const response = await api.get('/api/ports');
         const data = response.data.data || response.data;
         const portsArray = Array.isArray(data) ? data : (data.data || []);
 
-        setToCache('admin_ports', portsArray);
         return portsArray;
     },
 
@@ -615,6 +611,12 @@ export const apiService = {
         return response.data;
     },
 
+    async getPublicRoutes(): Promise<Route[]> {
+        const response = await api.get('/api/routes');
+        return response.data.routes;
+    },
+
+
     async downloadBookingPdf(id: string) {
         const response = await api.get(`/api/bookings/${id}/pdf`, {
             responseType: 'blob',
@@ -697,6 +699,27 @@ export const apiService = {
 
     async getCashDeskStats(cashDeskId: number): Promise<any> {
         const response = await api.get(`/api/admin/reports/cash-desk/${cashDeskId}/stats`);
+        return response.data;
+    },
+
+    // Supervisor Service
+    getSupervisorDashboard: async () => {
+        const response = await api.get('/api/admin/supervisor/dashboard');
+        return response.data;
+    },
+
+    getSupervisorCashDesks: async () => {
+        const response = await api.get('/api/admin/supervisor/cash-desks');
+        return response.data;
+    },
+
+    closeCashDeskRemotely: async (id: number) => {
+        const response = await api.post(`/api/admin/supervisor/cash-desks/${id}/close`);
+        return response.data;
+    },
+
+    getSupervisorSalesHistory: async () => {
+        const response = await api.get('/api/admin/supervisor/sales-history');
         return response.data;
     },
 };

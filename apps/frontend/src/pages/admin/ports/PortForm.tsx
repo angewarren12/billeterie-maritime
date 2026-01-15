@@ -40,9 +40,9 @@ export default function PortForm({ port, onSuccess, onCancel }: PortFormProps) {
 
         try {
             if (port) {
-                await apiService.updatePort(port.id, formData);
+                await apiService.updatePort(port.id, formData as any);
             } else {
-                await apiService.createPort(formData);
+                await apiService.createPort(formData as any);
             }
             onSuccess();
         } catch (err: any) {

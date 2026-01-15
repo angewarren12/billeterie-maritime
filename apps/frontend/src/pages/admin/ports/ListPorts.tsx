@@ -34,12 +34,11 @@ export default function ListPorts() {
     }, []);
 
     const loadPorts = async () => {
-        const start = performance.now();
         try {
             const data = await apiService.getPorts();
-            const totalTime = Math.round(performance.now() - start);
-            console.log(`⚓ [Ports] Chargé en ${totalTime}ms (Backend: ${data.internal_time_ms}ms)`);
-            setPorts(data.data || []);
+            const responseData = data as any;
+            const portsList = Array.isArray(responseData) ? responseData : (responseData.data || []);
+            setPorts(portsList);
         } catch (error) {
             console.error("Failed to load ports", error);
             toast.error("Impossible de charger les gares.");

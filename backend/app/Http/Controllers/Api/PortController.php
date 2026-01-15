@@ -19,9 +19,7 @@ class PortController extends Controller
     {
         $start = microtime(true);
         
-        $ports = Cache::remember($this->cacheKey, 3600, function() {
-            return PortResource::collection(Port::all())->resolve();
-        });
+        $ports = PortResource::collection(Port::all())->resolve();
 
         return response()->json([
             'data' => $ports,

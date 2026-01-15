@@ -41,14 +41,7 @@ export default function BookingDetail() {
 
     const handleDownloadTicket = async () => {
         try {
-            const blob = await apiService.downloadBookingPdf(booking.id);
-            const url = window.URL.createObjectURL(new Blob([blob]));
-            const link = document.createElement('a');
-            link.href = url;
-            link.setAttribute('download', `Billet-${booking.booking_reference}.pdf`);
-            document.body.appendChild(link);
-            link.click();
-            link.remove();
+            await apiService.downloadBookingPdf(booking.id.toString());
             toast.success("Téléchargement lancé");
         } catch (error) {
             console.error("Download error", error);

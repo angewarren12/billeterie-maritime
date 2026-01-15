@@ -14,7 +14,6 @@ import {
     ArrowsRightLeftIcon,
     CheckBadgeIcon,
     GlobeAltIcon,
-    TruckIcon,
     PlusIcon,
     XMarkIcon
 } from '@heroicons/react/24/outline';
@@ -25,7 +24,6 @@ const Dashboard = () => {
     const [bookings, setBookings] = useState<any[]>([]);
     const [plans, setPlans] = useState<any[]>([]);
     const [subscriptions, setSubscriptions] = useState<any[]>([]); // MULTI
-    const [mySubscription, setMySubscription] = useState<any>(null);
     const [loading, setLoading] = useState(true);
     const [activeTab, setActiveTab] = useState<'bookings' | 'badges' | 'profile'>('bookings');
     const [loyaltyTab, setLoyaltyTab] = useState<'ANNUEL' | 'MENSUEL'>('ANNUEL');
@@ -70,7 +68,6 @@ const Dashboard = () => {
             setBookings(bookingsData.bookings || []);
             setPlans(plansData.plans || []);
             setSubscriptions(subsData.subscriptions || []);
-            setMySubscription(subsData.subscriptions?.[0] || null); // Garde la compatibilité
         } catch (error) {
             console.error("Failed to load dashboard data", error);
         } finally {
@@ -127,17 +124,25 @@ const Dashboard = () => {
                 </div>
             </div>
 
-            {/* Navigation Tab Style Desktop Only */}
-            <div className="bg-white border-b border-gray-100 sticky top-0 z-40">
-                <div className="container mx-auto px-4">
-                    <div className="flex gap-10">
-                        {['bookings', 'badges', 'profile'].map((tab) => (
+            {/* Navigation Tab - App Native Style */}
+            <div className="bg-white/80 backdrop-blur-xl border-b border-gray-100 sticky top-0 z-40">
+                <div className="container mx-auto px-4 overflow-x-auto hide-scrollbar">
+                    <div className="flex gap-8 min-w-max">
+                        {[
+                            { id: 'bookings', label: 'Traversées', icon: TicketIcon },
+                            { id: 'badges', label: 'Abonnements', icon: CheckBadgeIcon },
+                            { id: 'profile', label: 'Profil', icon: UserIcon }
+                        ].map((tab) => (
                             <button
-                                key={tab}
-                                onClick={() => setActiveTab(tab as any)}
-                                className={`py-5 text-[11px] font-black uppercase tracking-[0.2em] border-b-4 transition-all ${activeTab === tab ? 'border-ocean-600 text-ocean-600' : 'border-transparent text-gray-400 hover:text-gray-600'}`}
+                                key={tab.id}
+                                onClick={() => setActiveTab(tab.id as any)}
+                                className={`group py-4 px-2 flex items-center gap-2.5 transition-all relative ${activeTab === tab.id ? 'text-ocean-600' : 'text-gray-400 hover:text-gray-600'}`}
                             >
-                                {tab === 'bookings' ? 'Historique des Traversées' : tab === 'badges' ? 'Badges & Fidélité' : 'Mon Profil'}
+                                <tab.icon className={`w-5 h-5 transition-transform group-active:scale-90 ${activeTab === tab.id ? 'text-ocean-500' : 'text-gray-300'}`} />
+                                <span className={`text-[11px] font-black uppercase tracking-[0.15em] transition-all ${activeTab === tab.id ? 'opacity-100' : 'opacity-80'}`}>{tab.label}</span>
+                                {activeTab === tab.id && (
+                                    <div className="absolute bottom-0 left-0 right-0 h-1 bg-ocean-600 rounded-t-full shadow-lg shadow-ocean-200" />
+                                )}
                             </button>
                         ))}
                     </div>
@@ -330,29 +335,29 @@ const Dashboard = () => {
                         )}
 
                         {/* Catalogue des Abonnements */}
-                        <div id="catalog" className="space-y-12 mt-16">
-                            <div className="text-center max-w-2xl mx-auto space-y-4">
-                                <h3 className="text-4xl font-black text-gray-900 tracking-tighter uppercase">Le Catalogue Maritime</h3>
-                                <p className="text-lg text-gray-400 font-medium italic">"Plus vous voyagez, moins vous payez."</p>
+                        <div id="catalog" className="space-y-12 mt-16 animate-slide-up">
+                            <div className="text-center max-w-2xl mx-auto space-y-4 px-4">
+                                <h3 className="text-4xl md:text-5xl font-black text-gray-900 tracking-tighter uppercase leading-none">Le Catalogue <span className="text-ocean-600">Maritime</span></h3>
+                                <p className="text-sm md:text-lg text-gray-400 font-bold uppercase tracking-[0.2em]">"Plus vous voyagez, moins vous payez."</p>
 
-                                {/* Système d'Onglets Subscriptions */}
-                                <div className="inline-flex p-1.5 bg-gray-100 rounded-2xl mt-4">
+                                {/* Système d'Onglets Subscriptions - Mobile Native Style */}
+                                <div className="inline-flex p-1.5 bg-gray-100 rounded-[2rem] mt-6 border border-gray-100 shadow-inner">
                                     <button
                                         onClick={() => setLoyaltyTab('ANNUEL')}
-                                        className={`px-8 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${loyaltyTab === 'ANNUEL' ? 'bg-white text-ocean-600 shadow-sm' : 'text-gray-400 hover:text-gray-600'}`}
+                                        className={`px-10 py-3.5 rounded-[1.8rem] text-[10px] font-black uppercase tracking-widest transition-all duration-500 ${loyaltyTab === 'ANNUEL' ? 'bg-white text-ocean-600 shadow-lg' : 'text-gray-400 hover:text-gray-600'}`}
                                     >
                                         Annuels
                                     </button>
                                     <button
                                         onClick={() => setLoyaltyTab('MENSUEL')}
-                                        className={`px-8 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${loyaltyTab === 'MENSUEL' ? 'bg-white text-orange-600 shadow-sm' : 'text-gray-400 hover:text-gray-600'}`}
+                                        className={`px-10 py-3.5 rounded-[1.8rem] text-[10px] font-black uppercase tracking-widest transition-all duration-500 ${loyaltyTab === 'MENSUEL' ? 'bg-white text-orange-600 shadow-lg' : 'text-gray-400 hover:text-gray-600'}`}
                                     >
                                         Mensuels
                                     </button>
                                 </div>
                             </div>
 
-                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 pt-8">
+                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 pt-8 px-4">
                                 {loading ? (
                                     [1, 2, 3].map(i => (
                                         <div key={i} className="h-[500px] bg-white rounded-[3rem] p-1 border-2 border-gray-50 animate-pulse">
@@ -360,46 +365,53 @@ const Dashboard = () => {
                                         </div>
                                     ))
                                 ) : plans.filter(p => p.period === loyaltyTab).map((item, i) => (
-                                    <div key={i} className={`group relative bg-white rounded-[3rem] p-1 border-2 transition-all duration-700 hover:shadow-2xl ${loyaltyTab === 'ANNUEL' ? 'border-ocean-50 hover:border-ocean-600/20' : 'border-orange-50 hover:border-orange-600/20'}`}>
-                                        <div className="bg-white rounded-[2.9rem] p-10 h-full flex flex-col relative overflow-hidden">
-                                            <div className={`absolute top-0 right-0 w-32 h-32 rounded-full -mr-16 -mt-16 blur-3xl opacity-20 ${loyaltyTab === 'ANNUEL' ? 'bg-ocean-600' : 'bg-orange-600'}`}></div>
+                                    <div key={i} className={`group relative bg-white rounded-[3rem] p-1.5 border-2 transition-all duration-700 hover:shadow-[0_40px_100px_rgba(0,0,0,0.1)] ${loyaltyTab === 'ANNUEL' ? 'border-ocean-50 hover:border-ocean-600/20 shadow-ocean-600/5' : 'border-orange-50 hover:border-orange-600/20 shadow-orange-600/5'}`}>
+                                        <div className="bg-white rounded-[2.8rem] p-8 md:p-10 h-full flex flex-col relative overflow-hidden active:scale-95 transition-transform duration-300">
+                                            <div className={`absolute top-0 right-0 w-48 h-48 rounded-full -mr-24 -mt-24 blur-3xl opacity-10 transition-opacity group-hover:opacity-20 ${loyaltyTab === 'ANNUEL' ? 'bg-ocean-600' : 'bg-orange-600'}`}></div>
 
                                             <div className="flex-1">
-                                                <div className="flex justify-between items-start mb-8">
-                                                    <div className={`w-16 h-16 rounded-3xl flex items-center justify-center text-white shadow-lg transform group-hover:scale-110 group-hover:rotate-6 transition-all duration-500 ${loyaltyTab === 'ANNUEL' ? 'bg-ocean-600 shadow-ocean-200' : 'bg-orange-500 shadow-orange-200'}`}>
+                                                <div className="flex justify-between items-start mb-10">
+                                                    <div className={`w-16 h-16 rounded-3xl flex items-center justify-center text-white shadow-2xl transform rotate-3 group-hover:rotate-0 group-hover:scale-110 transition-all duration-700 ${loyaltyTab === 'ANNUEL' ? 'bg-gradient-to-br from-ocean-500 to-ocean-700 shadow-ocean-200' : 'bg-gradient-to-br from-orange-400 to-orange-600 shadow-orange-200'}`}>
                                                         {loyaltyTab === 'ANNUEL' ? <CalendarIcon className="w-8 h-8" /> : <ClockIcon className="w-8 h-8" />}
                                                     </div>
-                                                    <span className={`text-[10px] font-black uppercase tracking-widest bg-gray-50 px-3 py-1.5 rounded-xl border border-gray-100 ${loyaltyTab === 'ANNUEL' ? 'text-ocean-600' : 'text-orange-600'}`}>
-                                                        {loyaltyTab === 'ANNUEL' ? 'Vérifié Pro' : 'Eco Flexible'}
-                                                    </span>
+                                                    <div className={`text-[9px] font-black uppercase tracking-[0.2em] bg-gray-50 px-4 py-2 rounded-2xl border border-gray-100 ${loyaltyTab === 'ANNUEL' ? 'text-ocean-600' : 'text-orange-600'}`}>
+                                                        {loyaltyTab === 'ANNUEL' ? 'Premium Pro' : 'Eco Flexible'}
+                                                    </div>
                                                 </div>
 
-                                                <h4 className="text-2xl font-black text-gray-900 mb-2 leading-none">{item.name}</h4>
-                                                <p className="text-gray-400 text-xs font-bold uppercase mb-8">Service Illimité • Badge RFID Physique</p>
+                                                <h4 className="text-3xl font-black text-gray-900 mb-2 leading-none tracking-tighter">{item.name}</h4>
+                                                <p className="text-gray-400 text-[10px] font-black uppercase tracking-[0.2em] mb-10 pl-1 border-l-4 border-ocean-100">Badge RFID Physique Inclus</p>
 
-                                                <ul className="space-y-4 mb-10">
-                                                    {['Priorité embarquement', 'Portique instantané', 'Passage famille inclus'].map((f, idx) => (
-                                                        <li key={idx} className="flex items-center gap-3">
-                                                            <div className={`w-5 h-5 rounded-full flex items-center justify-center ${loyaltyTab === 'ANNUEL' ? 'bg-ocean-50 text-ocean-600' : 'bg-orange-50 text-orange-600'}`}>
-                                                                <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20"><path d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" /></svg>
+                                                <ul className="space-y-5 mb-12">
+                                                    {[
+                                                        { text: 'Priorité embarquement', icon: '⚡' },
+                                                        { text: 'Portique instantané', icon: '📲' },
+                                                        { text: 'Passage famille inclus', icon: '👨‍👩‍👧‍👦' }
+                                                    ].map((f, idx) => (
+                                                        <li key={idx} className="flex items-center gap-4 group/li">
+                                                            <div className={`w-6 h-6 rounded-full flex items-center justify-center text-[10px] transition-transform group-hover/li:rotate-12 ${loyaltyTab === 'ANNUEL' ? 'bg-ocean-50 text-ocean-600' : 'bg-orange-50 text-orange-600'}`}>
+                                                                {f.icon}
                                                             </div>
-                                                            <span className="text-sm font-bold text-gray-600">{f}</span>
+                                                            <span className="text-sm font-bold text-gray-500 group-hover/li:text-gray-900 transition-colors">{f.text}</span>
                                                         </li>
                                                     ))}
                                                 </ul>
                                             </div>
 
-                                            <div className="pt-8 border-t border-dashed border-gray-100 mt-auto">
-                                                <div className="flex items-baseline gap-1 mb-6">
-                                                    <span className="text-4xl font-black text-gray-900 tracking-tighter">{(Number(item.price)).toLocaleString()}</span>
-                                                    <span className="text-sm font-black text-gray-400 uppercase">FCFA</span>
+                                            <div className="pt-10 border-t-2 border-dashed border-gray-100 mt-auto">
+                                                <div className="flex items-baseline gap-2 mb-8">
+                                                    <span className="text-5xl font-black text-gray-900 tracking-tighter">{(Number(item.price)).toLocaleString()}</span>
+                                                    <span className="text-sm font-black text-gray-400 uppercase tracking-widest">FCFA</span>
                                                 </div>
                                                 <button
                                                     onClick={() => setSelectedPlan(item)}
-                                                    className={`w-full py-5 rounded-2xl font-black text-sm uppercase tracking-widest transition-all duration-300 shadow-xl flex items-center justify-center gap-3 text-white ${loyaltyTab === 'ANNUEL' ? 'bg-ocean-600 hover:bg-ocean-700 shadow-ocean-100' : 'bg-orange-500 hover:bg-orange-600 shadow-orange-100'}`}
+                                                    className={`w-full py-5 rounded-2xl font-black text-xs uppercase tracking-[0.3em] transition-all duration-500 shadow-2xl flex items-center justify-center gap-3 text-white group relative overflow-hidden ${loyaltyTab === 'ANNUEL' ? 'bg-ocean-600 hover:bg-ocean-700 shadow-ocean-100' : 'bg-orange-500 hover:bg-orange-600 shadow-orange-100'}`}
                                                 >
-                                                    <span>Je Commande</span>
-                                                    <ArrowsRightLeftIcon className="w-5 h-5" />
+                                                    <span className="relative z-10 flex items-center gap-2">
+                                                        JE COMMANDE
+                                                        <ArrowsRightLeftIcon className="w-5 h-5 group-hover:rotate-180 transition-transform duration-500" />
+                                                    </span>
+                                                    <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent -translate-x-full group-hover:animate-shimmer" />
                                                 </button>
                                             </div>
                                         </div>

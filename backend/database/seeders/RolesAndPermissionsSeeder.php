@@ -28,6 +28,10 @@ class RolesAndPermissionsSeeder extends Seeder
             'pos.access', 'pos.sale', 'pos.session.close', 'pos.subscription.sale',
             // Gestion technique
             'view_any_user', 'manage_users', 'manage_roles',
+            // Permissions Superviseur
+            'supervisor.view_dashboard', 'supervisor.manage_station', 'supervisor.close_cash_desk_remotely', 'supervisor.view_all_sales',
+            // Permissions Agent Embarquement (New)
+            'validate_disembarking', 'view_boarding_status', 'access_gate_control',
         ];
 
         foreach ($permissions as $permission) {
@@ -59,12 +63,33 @@ class RolesAndPermissionsSeeder extends Seeder
             'pos.access', 'pos.sale', 'pos.session.close', 'pos.subscription.sale',
         ]);
 
+        // SUPERVISEUR DE GARE (Supervision Opérationnelle)
+        $superviseur = Role::firstOrCreate(['name' => 'superviseur_gare', 'guard_name' => 'web']);
+        $superviseur->givePermissionTo([
+            // Guichets & Ventes
+            'view_any_booking', 'view_booking',
+            'pos.access', 'view_financial_reports', 'manage_cash_desks',
+            // Supervision & Monitoring
+            'view_any_user', // Pour voir ses agents
+            'view_any_trip', 
+            'manage_trips', // Pour situations d'urgence seulement (peut être ajusté)
+            // Permissions spécifiques Superviseur
+            'supervisor.view_dashboard',
+            'supervisor.manage_station',
+            'supervisor.close_cash_desk_remotely',
+            'supervisor.view_all_sales',
+             // N'a PAS le droit de vendre directement (pos.sale) pour éviter les écarts
+        ]);
+
         // AGENT EMBARQUEMENT (Validation)
         $agentEmb = Role::firstOrCreate(['name' => 'agent_embarquement', 'guard_name' => 'web']);
         $agentEmb->givePermissionTo([
             'view_any_trip',
             'scan_qr_code',
             'validate_boarding',
+            'validate_disembarking',
+            'view_boarding_status',
+            'access_gate_control',
         ]);
 
         // COMPTABLE (Audit Financier)

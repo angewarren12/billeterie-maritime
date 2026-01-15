@@ -28,8 +28,11 @@ interface Booking {
     trip?: {
         departure_time: string;
         route?: {
+            name?: string;
             departure_port?: { name: string };
             arrival_port?: { name: string };
+            departurePort?: { name: string };
+            arrivalPort?: { name: string };
         };
         ship?: {
             name: string;

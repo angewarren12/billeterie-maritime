@@ -80,14 +80,27 @@ class AuthController extends Controller
         $userId = Auth::id();
         \Illuminate\Support\Facades\Log::info('Logout attempt for user:', ['id' => $userId]);
 
+        // Déconnecter l'utilisateur
         Auth::logout();
+        
+        // Invalider la session
         $request->session()->invalidate();
         $request->session()->regenerateToken();
+        
+        // Supprimer explicitement les cookies Laravel Sanctum
+        $response = response()->json(['message' => 'Logged out']);
+        
+        // Supprimer le cookie de session Laravel
+        $response->withCookie(cookie()->forget(config('session.cookie')));
+        
+        // Supprimer le cookie XSRF-TOKEN
+        $response->withCookie(cookie()->forget('XSRF-TOKEN'));
 
         \Illuminate\Support\Facades\Log::info('Logout successful for user:', ['id' => $userId]);
 
-        return response()->json(['message' => 'Logged out']);
+        return $response;
     }
+
 
     public function me(Request $request)
     {

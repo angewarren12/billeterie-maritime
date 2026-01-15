@@ -18,6 +18,7 @@ import {
 } from '@heroicons/react/24/outline';
 import { toast } from 'react-hot-toast';
 import { thermalPrintService } from '../../../services/thermalPrinter';
+import ClientSearch from '../../../components/pos/ClientSearch';
 
 interface BasketItem {
     id: string; // Unique ID for basket
@@ -343,30 +344,43 @@ export default function POSDashboard() {
                     total_amount: totalAmount
                 };
 
+
                 const response = await apiService.posSale(data);
                 const bookingRef = response.booking.booking_reference;
+                const tickets = response.booking.tickets || [];
 
-                thermalPrintService.printReceipt({
-                    companyName: "LIA MARITIME - POS",
-                    companyAddress: "GARE MARITIME",
-                    trip: {
-                        departure: selectedTrip.route.departure_port.name,
-                        arrival: selectedTrip.route.arrival_port.name,
-                        date: new Date(selectedTrip.departure_time).toLocaleString('fr-FR'),
-                        shipName: selectedTrip.ship.name
-                    },
-                    bookingRef: bookingRef,
-                    passengers: basket.map(b => ({
-                        name: b.name,
-                        type: b.type,
-                        price: b.price
-                    })),
-                    totalAmount: totalAmount,
-                    cashierName: `${currentUser?.name || "Agent"} (${activeCashDesk?.name || "Sans guichet"})`,
-                    date: new Date().toLocaleString('fr-FR')
-                });
+                // Imprimer UN TICKET PAR PASSAGER avec son QR code unique
+                if (tickets.length > 0) {
+                    tickets.forEach((ticket: any, index: number) => {
+                        setTimeout(() => {
+                            thermalPrintService.printIndividualTicket({
+                                companyName: "LIA MARITIME - POS",
+                                companyAddress: "GARE MARITIME",
+                                trip: {
+                                    departure: selectedTrip.route.departure_port.name,
+                                    arrival: selectedTrip.route.arrival_port.name,
+                                    date: new Date(selectedTrip.departure_time).toLocaleString('fr-FR'),
+                                    shipName: selectedTrip.ship.name
+                                },
+                                bookingRef: bookingRef,
+                                passenger: {
+                                    name: ticket.passenger_name,
+                                    type: ticket.passenger_type,
+                                    price: ticket.price_paid
+                                },
+                                ticketNumber: ticket.ticket_number,
+                                qrCodeData: ticket.qr_code_data,
+                                cashierName: `${currentUser?.name || "Agent"} (${activeCashDesk?.name || "Sans guichet"})`,
+                                date: new Date().toLocaleString('fr-FR')
+                            });
+                        }, index * 1500); // Délai de 1.5s entre chaque impression
+                    });
 
-                toast.success("Vente réussie et ticket imprimé !");
+                    toast.success(`${tickets.length} ticket(s) imprimé(s) avec succès !`);
+                } else {
+                    toast.error("Aucun ticket généré");
+                }
+
             }
 
             setBasket([]);
@@ -577,7 +591,7 @@ export default function POSDashboard() {
                         {/* Main Interaction Area */}
                         <div className="flex-1 flex gap-6 min-h-0">
                             {/* Left Column: Products & Forms */}
-                            <div className="flex-[2.5] flex flex-col gap-6 overflow-y-auto pr-2 custom-scrollbar">
+                            <div className={`${viewMode === 'history' ? 'flex-1' : 'flex-[2.5]'} flex flex-col gap-6 overflow-y-auto pr-2 custom-scrollbar`}>
                                 {viewMode === 'tickets' && (
                                     <>
                                         {/* Trip Selection Area */}
@@ -615,13 +629,17 @@ export default function POSDashboard() {
                                                                 : 'border-slate-100 dark:border-slate-700 bg-white dark:bg-slate-800/50 hover:border-indigo-200 dark:hover:border-indigo-900/50 hover:shadow-md'
                                                                 }`}
                                                         >
-                                                            {/* Time */}
-                                                            <div className="flex-shrink-0 w-20 text-center">
+                                                            {/* Time & Date */}
+                                                            <div className="flex-shrink-0 w-24 text-center">
                                                                 <div className="text-[10px] font-bold text-slate-400 uppercase tracking-widest leading-none mb-1">Départ</div>
                                                                 <div className="text-2xl font-black tabular-nums text-slate-900 dark:text-white">
                                                                     {new Date(trip.departure_time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                                                                 </div>
+                                                                <div className="text-[10px] font-bold text-indigo-600 dark:text-indigo-400 uppercase tracking-wide mt-1">
+                                                                    {new Date(trip.departure_time).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short' })}
+                                                                </div>
                                                             </div>
+
 
                                                             {/* Route */}
                                                             <div className="flex-1 min-w-0">
@@ -671,6 +689,29 @@ export default function POSDashboard() {
                                                 )}
                                             </div>
                                         </section>
+
+                                        {/* Client Search Component */}
+                                        <ClientSearch
+                                            onClientSelected={(client) => {
+                                                setSelectedCustomer(client);
+                                                if (client) {
+                                                    // Pré-remplissage automatique des informations passager
+                                                    setNewPassenger({
+                                                        name: client.name,
+                                                        type: 'adult', // Par défaut adulte
+                                                        nationality_group: 'national' // Par défaut national
+                                                    });
+                                                }
+                                            }}
+                                            onNewClient={() => {
+                                                setShowCreateCustomer(true);
+                                                setNewPassenger({
+                                                    name: '',
+                                                    type: 'adult',
+                                                    nationality_group: 'national'
+                                                });
+                                            }}
+                                        />
 
                                         {/* Passenger Input Form */}
                                         <section className="bg-white dark:bg-slate-800 rounded-[2.5rem] p-8 shadow-sm border border-slate-200 dark:border-slate-700">
@@ -748,41 +789,55 @@ export default function POSDashboard() {
                                         </div>
 
                                         {subTab === 'plans' ? (
-                                            <div className="flex-1 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 overflow-y-auto pr-2 custom-scrollbar pb-12">
-                                                {Array.isArray(subscriptionPlans) && subscriptionPlans.map(plan => (
-                                                    <div
-                                                        key={plan.id}
-                                                        className="group bg-white dark:bg-slate-800 rounded-[2.5rem] p-8 shadow-sm border border-slate-200 dark:border-slate-700 hover:shadow-2xl hover:border-indigo-500/30 transition-all cursor-pointer relative overflow-hidden h-fit"
-                                                        onClick={() => {
-                                                            const newItem: BasketItem = {
-                                                                id: `sub_${plan.id}_${Date.now()}`,
-                                                                name: `Badge: ${plan.name}`,
-                                                                type: 'adult',
-                                                                nationality_group: 'national',
-                                                                price: Number(plan.price)
-                                                            };
-                                                            setBasket([newItem]); // One subscription at a time
-                                                            toast.success(`${plan.name} ajouté`);
-                                                        }}
-                                                    >
-                                                        <div className="absolute top-0 right-0 p-6">
-                                                            <IdentificationIcon className="w-8 h-8 text-slate-100 dark:text-slate-700/30 group-hover:text-indigo-500/20 transition-colors" />
+                                            <div className="flex-1 flex flex-col gap-6 overflow-hidden pb-12">
+                                                {/* Client Search for Subscription */}
+                                                <ClientSearch
+                                                    onClientSelected={(client) => {
+                                                        setSelectedCustomer(client);
+                                                        toast.success(client ? `Client ${client.name} sélectionné pour l'abonnement` : 'Client désélectionné');
+                                                    }}
+                                                    onNewClient={() => {
+                                                        setShowCreateCustomer(true);
+                                                    }}
+                                                />
+
+                                                <div className="flex-1 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 overflow-y-auto pr-2 custom-scrollbar">
+                                                    {Array.isArray(subscriptionPlans) && subscriptionPlans.map(plan => (
+                                                        <div
+                                                            key={plan.id}
+                                                            className="group bg-white dark:bg-slate-800 rounded-[2.5rem] p-8 shadow-sm border border-slate-200 dark:border-slate-700 hover:shadow-2xl hover:border-indigo-500/30 transition-all cursor-pointer relative overflow-hidden h-fit"
+                                                            onClick={() => {
+                                                                const newItem: BasketItem = {
+                                                                    id: `sub_${plan.id}_${Date.now()}`,
+                                                                    name: `Badge: ${plan.name}`,
+                                                                    type: 'adult',
+                                                                    nationality_group: 'national',
+                                                                    price: Number(plan.price)
+                                                                };
+                                                                setBasket([newItem]); // One subscription at a time
+                                                                toast.success(`${plan.name} ajouté`);
+                                                            }}
+                                                        >
+                                                            <div className="absolute top-0 right-0 p-6">
+                                                                <IdentificationIcon className="w-8 h-8 text-slate-100 dark:text-slate-700/30 group-hover:text-indigo-500/20 transition-colors" />
+                                                            </div>
+                                                            <h3 className="text-xl font-black text-slate-800 dark:text-white uppercase tracking-tighter mb-1">{plan.name}</h3>
+                                                            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-6">Valable {plan.duration_days} jours</p>
+                                                            <div className="flex items-baseline gap-2">
+                                                                <span className="text-3xl font-black text-indigo-600 dark:text-indigo-400">{Number(plan.price).toLocaleString()}</span>
+                                                                <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest italic font-medium">CFA</span>
+                                                            </div>
                                                         </div>
-                                                        <h3 className="text-xl font-black text-slate-800 dark:text-white uppercase tracking-tighter mb-1">{plan.name}</h3>
-                                                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-6">Valable {plan.duration_days} jours</p>
-                                                        <div className="flex items-baseline gap-2">
-                                                            <span className="text-3xl font-black text-indigo-600 dark:text-indigo-400">{Number(plan.price).toLocaleString()}</span>
-                                                            <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest italic font-medium">CFA</span>
+                                                    ))}
+                                                    {subscriptionPlans.length === 0 && (
+                                                        <div className="col-span-full h-full flex flex-col items-center justify-center opacity-30 py-20">
+                                                            <ServerIcon className="w-16 h-16 mb-4" />
+                                                            <p className="text-[10px] font-black uppercase tracking-widest">Aucun plan d'abonnement</p>
                                                         </div>
-                                                    </div>
-                                                ))}
-                                                {subscriptionPlans.length === 0 && (
-                                                    <div className="col-span-full h-full flex flex-col items-center justify-center opacity-30 py-20">
-                                                        <ServerIcon className="w-16 h-16 mb-4" />
-                                                        <p className="text-[10px] font-black uppercase tracking-widest">Aucun plan d'abonnement</p>
-                                                    </div>
-                                                )}
+                                                    )}
+                                                </div>
                                             </div>
+
                                         ) : (
                                             <div className="flex-1 flex flex-col gap-6 overflow-hidden">
                                                 <div className="relative">
@@ -943,159 +998,163 @@ export default function POSDashboard() {
                                 )}
                             </div>
 
-                            {/* Right Column: Basket & Payment */}
-                            <aside className="flex-1 flex flex-col gap-6 min-w-[380px]">
-                                {/* Customer Selection */}
-                                <div className="bg-white dark:bg-slate-800 rounded-[2.5rem] p-7 shadow-sm border border-slate-200 dark:border-slate-700">
-                                    <div className="flex justify-between items-center mb-4">
-                                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1 italic">Identification Client</label>
-                                        <button
-                                            onClick={() => {
-                                                setShowCreateCustomer(!showCreateCustomer);
-                                                if (selectedCustomer) setSelectedCustomer(null);
-                                            }}
-                                            className={`text-[9px] font-black uppercase tracking-widest px-3 py-1 rounded-lg transition-all ${showCreateCustomer ? 'bg-indigo-600 text-white shadow-lg' : 'bg-slate-100 text-slate-500 hover:bg-slate-200'}`}
-                                        >
-                                            {showCreateCustomer ? 'Recherche' : 'Nouveau +'}
-                                        </button>
-                                    </div>
-
-                                    {!showCreateCustomer ? (
-                                        <div className="relative">
-                                            <input
-                                                type="text"
-                                                value={customerSearch}
-                                                onChange={e => handleCustomerSearch(e.target.value)}
-                                                placeholder="Mobile ou Nom..."
-                                                className="w-full bg-slate-50 dark:bg-slate-700/50 border-none rounded-2xl p-4 pl-11 text-sm font-bold outline-none"
-                                            />
-                                            <MagnifyingGlassIcon className="w-5 h-5 text-slate-300 absolute left-4 top-4" />
-
-                                            {customers.length > 0 && (
-                                                <div className="absolute top-full left-0 right-0 mt-3 bg-white dark:bg-slate-800 rounded-3xl shadow-2xl border border-slate-100 dark:border-slate-700 z-50 overflow-hidden divide-y dark:divide-slate-700">
-                                                    {customers.map(c => (
-                                                        <div
-                                                            key={c.id}
-                                                            onClick={() => {
-                                                                setSelectedCustomer(c);
-                                                                setCustomerSearch(c.name);
-                                                                setCustomers([]);
-                                                                setNewPassenger({ ...newPassenger, name: c.name });
-                                                            }}
-                                                            className="p-4 hover:bg-slate-50 dark:hover:bg-slate-700 cursor-pointer transition-colors"
-                                                        >
-                                                            <div className="font-bold text-sm">{c.name}</div>
-                                                            <div className="text-[10px] font-bold text-indigo-500 mt-0.5">{c.phone || c.email}</div>
-                                                        </div>
-                                                    ))}
-                                                </div>
-                                            )}
-                                        </div>
-                                    ) : (
-                                        <div className="space-y-3 animate-in fade-in slide-in-from-top-2 duration-300">
-                                            <input
-                                                type="text"
-                                                placeholder="Nom complet *"
-                                                value={newCustomerForm.name}
-                                                onChange={e => setNewCustomerForm({ ...newCustomerForm, name: e.target.value })}
-                                                className="w-full bg-slate-50 dark:bg-slate-700/50 border border-indigo-500/20 rounded-xl p-3 text-xs font-bold outline-none focus:ring-2 focus:ring-indigo-500/20"
-                                            />
-                                            <div className="flex gap-2">
-                                                <input
-                                                    type="text"
-                                                    placeholder="Téléphone"
-                                                    value={newCustomerForm.phone}
-                                                    onChange={e => setNewCustomerForm({ ...newCustomerForm, phone: e.target.value })}
-                                                    className="flex-1 bg-slate-50 dark:bg-slate-700/50 border border-slate-200 dark:border-slate-700 rounded-xl p-3 text-xs font-bold outline-none"
-                                                />
-                                                <input
-                                                    type="email"
-                                                    placeholder="Email"
-                                                    value={newCustomerForm.email}
-                                                    onChange={e => setNewCustomerForm({ ...newCustomerForm, email: e.target.value })}
-                                                    className="flex-1 bg-slate-50 dark:bg-slate-700/50 border border-slate-200 dark:border-slate-700 rounded-xl p-3 text-xs font-bold outline-none"
-                                                />
-                                            </div>
-                                        </div>
-                                    )}
-                                    {selectedCustomer && (
-                                        <div className="mt-4 flex items-center justify-between p-4 bg-emerald-500/5 border border-emerald-500/20 rounded-2xl">
-                                            <div className="flex items-center gap-3">
-                                                <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></div>
-                                                <span className="text-xs font-black text-emerald-700 uppercase">{selectedCustomer.name}</span>
-                                            </div>
-                                            <button onClick={() => setSelectedCustomer(null)} className="p-1.5 hover:bg-emerald-500/10 rounded-xl transition-colors">
-                                                <TrashIcon className="w-4 h-4 text-emerald-600" />
+                            {/* Right Column: Basket & Payment - Hide in history mode */}
+                            {viewMode !== 'history' && (
+                                <aside className="flex-1 flex flex-col gap-6 min-w-[380px]">
+                                    {/* Customer Selection */}
+                                    <div className="bg-white dark:bg-slate-800 rounded-[2.5rem] p-7 shadow-sm border border-slate-200 dark:border-slate-700">
+                                        <div className="flex justify-between items-center mb-4">
+                                            <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1 italic">Identification Client</label>
+                                            <button
+                                                onClick={() => {
+                                                    setShowCreateCustomer(!showCreateCustomer);
+                                                    if (selectedCustomer) setSelectedCustomer(null);
+                                                }}
+                                                className={`text-[9px] font-black uppercase tracking-widest px-3 py-1 rounded-lg transition-all ${showCreateCustomer ? 'bg-indigo-600 text-white shadow-lg' : 'bg-slate-100 text-slate-500 hover:bg-slate-200'}`}
+                                            >
+                                                {showCreateCustomer ? 'Recherche' : 'Nouveau +'}
                                             </button>
                                         </div>
-                                    )}
-                                </div>
 
-                                {/* Basket & Checkout */}
-                                <div className="flex-1 bg-white dark:bg-slate-800 rounded-[3rem] p-8 shadow-sm border border-slate-200 dark:border-slate-700 flex flex-col min-h-0 relative overflow-hidden">
-                                    {/* Basket Background Pattern */}
-                                    <div className="absolute top-0 right-0 -mr-16 -mt-16 w-64 h-64 bg-indigo-500/5 rounded-full blur-3xl"></div>
+                                        {!showCreateCustomer ? (
+                                            <div className="relative">
+                                                <input
+                                                    type="text"
+                                                    value={customerSearch}
+                                                    onChange={e => handleCustomerSearch(e.target.value)}
+                                                    placeholder="Mobile ou Nom..."
+                                                    className="w-full bg-slate-50 dark:bg-slate-700/50 border-none rounded-2xl p-4 pl-11 text-sm font-bold outline-none"
+                                                />
+                                                <MagnifyingGlassIcon className="w-5 h-5 text-slate-300 absolute left-4 top-4" />
 
-                                    <div className="flex justify-between items-center mb-8 relative z-10">
-                                        <h2 className="text-xl font-black uppercase tracking-tight">Panier</h2>
-                                        <div className="bg-indigo-600 text-white px-4 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest">{basket.length} Voyageurs</div>
-                                    </div>
-
-                                    <div className="flex-1 overflow-y-auto space-y-4 mb-8 pr-2 custom-scrollbar relative z-10">
-                                        {basket.length === 0 ? (
-                                            <div className="h-full flex flex-col items-center justify-center opacity-20 grayscale">
-                                                <ShoppingCartIcon className="w-16 h-16 mb-4" />
-                                                <p className="text-[10px] font-black uppercase tracking-[0.2em]">Panier de vente vide</p>
+                                                {customers.length > 0 && (
+                                                    <div className="absolute top-full left-0 right-0 mt-3 bg-white dark:bg-slate-800 rounded-3xl shadow-2xl border border-slate-100 dark:border-slate-700 z-50 overflow-hidden divide-y dark:divide-slate-700">
+                                                        {customers.map(c => (
+                                                            <div
+                                                                key={c.id}
+                                                                onClick={() => {
+                                                                    setSelectedCustomer(c);
+                                                                    setCustomerSearch(c.name);
+                                                                    setCustomers([]);
+                                                                    setNewPassenger({ ...newPassenger, name: c.name });
+                                                                }}
+                                                                className="p-4 hover:bg-slate-50 dark:hover:bg-slate-700 cursor-pointer transition-colors"
+                                                            >
+                                                                <div className="font-bold text-sm">{c.name}</div>
+                                                                <div className="text-[10px] font-bold text-indigo-500 mt-0.5">{c.phone || c.email}</div>
+                                                            </div>
+                                                        ))}
+                                                    </div>
+                                                )}
                                             </div>
                                         ) : (
-                                            basket.map(item => (
-                                                <div key={item.id} className="group flex items-center justify-between bg-slate-50 dark:bg-slate-700/30 p-5 rounded-3xl border border-slate-100 dark:border-slate-700/50 hover:shadow-md transition-all">
-                                                    <div className="space-y-1">
-                                                        <div className="font-black text-xs uppercase text-slate-800 dark:text-white">{item.name}</div>
-                                                        <div className="text-[9px] font-bold text-slate-400 uppercase tracking-widest leading-none">
-                                                            {item.type} <span className="mx-1">•</span> {item.nationality_group}
-                                                        </div>
-                                                    </div>
-                                                    <div className="flex items-center gap-4">
-                                                        <span className="font-black text-sm text-indigo-600 dark:text-indigo-400">{item.price.toLocaleString()}</span>
-                                                        <button onClick={() => removeFromBasket(item.id)} className="p-2 text-slate-300 hover:text-rose-500 transition-colors">
-                                                            <TrashIcon className="w-4 h-4" />
-                                                        </button>
-                                                    </div>
+                                            <div className="space-y-3 animate-in fade-in slide-in-from-top-2 duration-300">
+                                                <input
+                                                    type="text"
+                                                    placeholder="Nom complet *"
+                                                    value={newCustomerForm.name}
+                                                    onChange={e => setNewCustomerForm({ ...newCustomerForm, name: e.target.value })}
+                                                    className="w-full bg-slate-50 dark:bg-slate-700/50 border border-indigo-500/20 rounded-xl p-3 text-xs font-bold outline-none focus:ring-2 focus:ring-indigo-500/20"
+                                                />
+                                                <div className="flex gap-2">
+                                                    <input
+                                                        type="text"
+                                                        placeholder="Téléphone"
+                                                        value={newCustomerForm.phone}
+                                                        onChange={e => setNewCustomerForm({ ...newCustomerForm, phone: e.target.value })}
+                                                        className="flex-1 bg-slate-50 dark:bg-slate-700/50 border border-slate-200 dark:border-slate-700 rounded-xl p-3 text-xs font-bold outline-none"
+                                                    />
+                                                    <input
+                                                        type="email"
+                                                        placeholder="Email"
+                                                        value={newCustomerForm.email}
+                                                        onChange={e => setNewCustomerForm({ ...newCustomerForm, email: e.target.value })}
+                                                        className="flex-1 bg-slate-50 dark:bg-slate-700/50 border border-slate-200 dark:border-slate-700 rounded-xl p-3 text-xs font-bold outline-none"
+                                                    />
                                                 </div>
-                                            ))
+                                            </div>
+                                        )}
+                                        {selectedCustomer && (
+                                            <div className="mt-4 flex items-center justify-between p-4 bg-emerald-500/5 border border-emerald-500/20 rounded-2xl">
+                                                <div className="flex items-center gap-3">
+                                                    <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></div>
+                                                    <span className="text-xs font-black text-emerald-700 uppercase">{selectedCustomer.name}</span>
+                                                </div>
+                                                <button onClick={() => setSelectedCustomer(null)} className="p-1.5 hover:bg-emerald-500/10 rounded-xl transition-colors">
+                                                    <TrashIcon className="w-4 h-4 text-emerald-600" />
+                                                </button>
+                                            </div>
                                         )}
                                     </div>
 
-                                    <div className="border-t-2 border-dashed border-slate-100 dark:border-slate-700/50 pt-8 mt-auto relative z-10">
-                                        <div className="flex justify-between items-center mb-8">
-                                            <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1">Total à encaisser</div>
-                                            <div className="text-4xl font-black text-slate-900 dark:text-white tabular-nums tracking-tighter">
-                                                {totalAmount.toLocaleString()} <span className="text-xs font-bold text-indigo-600">FCFA</span>
-                                            </div>
+                                    {/* Basket & Checkout */}
+                                    <div className="flex-1 bg-white dark:bg-slate-800 rounded-[3rem] p-8 shadow-sm border border-slate-200 dark:border-slate-700 flex flex-col min-h-0 relative overflow-hidden">
+                                        {/* Basket Background Pattern */}
+                                        <div className="absolute top-0 right-0 -mr-16 -mt-16 w-64 h-64 bg-indigo-500/5 rounded-full blur-3xl"></div>
+
+                                        <div className="flex justify-between items-center mb-8 relative z-10">
+                                            <h2 className="text-xl font-black uppercase tracking-tight">
+                                                {basket.length > 0 ? `${basket.length} VOYAGEUR${basket.length > 1 ? 'S' : ''}` : 'PANIER VIDE'}
+                                            </h2>
+                                            <div className="bg-indigo-600 text-white px-4 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest">{basket.length}</div>
                                         </div>
 
-                                        <div className="grid grid-cols-2 gap-4">
-                                            <button
-                                                disabled={loading || basket.length === 0 || (basket.some(i => i.id.startsWith('sub_')) && !selectedCustomer && !showCreateCustomer)}
-                                                onClick={() => handleFinalizeSale('cash')}
-                                                className="group flex flex-col items-center gap-2.5 p-6 bg-emerald-600 text-white rounded-[2.5rem] font-black shadow-xl shadow-emerald-600/20 hover:scale-[1.02] active:scale-95 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
-                                            >
-                                                <BanknotesIcon className="w-8 h-8 opacity-60 group-hover:opacity-100 transition-opacity" />
-                                                <span className="text-[9px] uppercase tracking-[0.2em]">Espèces</span>
-                                            </button>
-                                            <button
-                                                disabled={loading || basket.length === 0 || (basket.some(i => i.id.startsWith('sub_')) && !selectedCustomer && !showCreateCustomer)}
-                                                onClick={() => handleFinalizeSale('card')}
-                                                className="group flex flex-col items-center gap-2.5 p-6 bg-indigo-600 text-white rounded-[2.5rem] font-black shadow-xl shadow-indigo-600/20 hover:scale-[1.02] active:scale-95 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
-                                            >
-                                                <CreditCardIcon className="w-8 h-8 opacity-60 group-hover:opacity-100 transition-opacity" />
-                                                <span className="text-[9px] uppercase tracking-[0.2em]">Digital / Carte</span>
-                                            </button>
+                                        <div className="flex-1 overflow-y-auto space-y-4 mb-8 pr-2 custom-scrollbar relative z-10">
+                                            {basket.length === 0 ? (
+                                                <div className="h-full flex flex-col items-center justify-center opacity-20 grayscale">
+                                                    <ShoppingCartIcon className="w-16 h-16 mb-4" />
+                                                    <p className="text-[10px] font-black uppercase tracking-[0.2em]">Panier de vente vide</p>
+                                                </div>
+                                            ) : (
+                                                basket.map(item => (
+                                                    <div key={item.id} className="group flex items-center justify-between bg-slate-50 dark:bg-slate-700/30 p-5 rounded-3xl border border-slate-100 dark:border-slate-700/50 hover:shadow-md transition-all">
+                                                        <div className="space-y-1">
+                                                            <div className="font-black text-xs uppercase text-slate-800 dark:text-white">{item.name}</div>
+                                                            <div className="text-[9px] font-bold text-slate-400 uppercase tracking-widest leading-none">
+                                                                {item.type} <span className="mx-1">•</span> {item.nationality_group}
+                                                            </div>
+                                                        </div>
+                                                        <div className="flex items-center gap-4">
+                                                            <span className="font-black text-sm text-indigo-600 dark:text-indigo-400">{item.price.toLocaleString()}</span>
+                                                            <button onClick={() => removeFromBasket(item.id)} className="p-2 text-slate-300 hover:text-rose-500 transition-colors">
+                                                                <TrashIcon className="w-4 h-4" />
+                                                            </button>
+                                                        </div>
+                                                    </div>
+                                                ))
+                                            )}
+                                        </div>
+
+                                        <div className="border-t-2 border-dashed border-slate-100 dark:border-slate-700/50 pt-8 mt-auto relative z-10">
+                                            <div className="flex justify-between items-center mb-8">
+                                                <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1">Total à encaisser</div>
+                                                <div className="text-4xl font-black text-slate-900 dark:text-white tabular-nums tracking-tighter">
+                                                    {totalAmount.toLocaleString()} <span className="text-xs font-bold text-indigo-600">FCFA</span>
+                                                </div>
+                                            </div>
+
+                                            <div className="grid grid-cols-2 gap-4">
+                                                <button
+                                                    disabled={loading || basket.length === 0 || (basket.some(i => i.id.startsWith('sub_')) && !selectedCustomer && !showCreateCustomer)}
+                                                    onClick={() => handleFinalizeSale('cash')}
+                                                    className="group flex flex-col items-center gap-2.5 p-6 bg-emerald-600 text-white rounded-[2.5rem] font-black shadow-xl shadow-emerald-600/20 hover:scale-[1.02] active:scale-95 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                                                >
+                                                    <BanknotesIcon className="w-8 h-8 opacity-60 group-hover:opacity-100 transition-opacity" />
+                                                    <span className="text-[9px] uppercase tracking-[0.2em]">Espèces</span>
+                                                </button>
+                                                <button
+                                                    disabled={loading || basket.length === 0 || (basket.some(i => i.id.startsWith('sub_')) && !selectedCustomer && !showCreateCustomer)}
+                                                    onClick={() => handleFinalizeSale('card')}
+                                                    className="group flex flex-col items-center gap-2.5 p-6 bg-indigo-600 text-white rounded-[2.5rem] font-black shadow-xl shadow-indigo-600/20 hover:scale-[1.02] active:scale-95 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                                                >
+                                                    <CreditCardIcon className="w-8 h-8 opacity-60 group-hover:opacity-100 transition-opacity" />
+                                                    <span className="text-[9px] uppercase tracking-[0.2em]">Digital / Carte</span>
+                                                </button>
+                                            </div>
                                         </div>
                                     </div>
-                                </div>
-                            </aside>
+                                </aside>
+                            )}
                         </div>
                     </>
                 )}

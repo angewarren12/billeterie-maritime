@@ -25,16 +25,17 @@ const navigationGroups = [
         name: 'Général',
         items: [
             { name: 'Dashboard', href: '/admin', icon: HomeIcon, roles: ['admin', 'super_admin', 'manager', 'guichetier', 'agent_embarquement', 'comptable'] },
-            { name: 'Vente (POS)', href: '/admin/pos', icon: BuildingStorefrontIcon, roles: ['admin', 'super_admin', 'manager', 'guichetier'] },
-            { name: 'Monitoring Accès', href: '/admin/monitoring', icon: SignalIcon, roles: ['admin', 'super_admin', 'manager', 'agent_embarquement'] },
+            { name: 'Dashboard Gare', href: '/admin/supervisor/dashboard', icon: ChartBarIcon, roles: ['superviseur_gare'] },
+            { name: 'Vente (POS)', href: '/admin/pos', icon: BuildingStorefrontIcon, roles: ['admin', 'super_admin', 'manager', 'guichetier', 'superviseur_gare'] },
+            { name: 'Monitoring Accès', href: '/admin/monitoring', icon: SignalIcon, roles: ['admin', 'super_admin', 'manager', 'agent_embarquement', 'superviseur_gare'] },
         ]
     },
     {
         name: 'Gestion Opérationnelle',
         items: [
             { name: 'Guichets', href: '/admin/cash-desks', icon: BuildingStorefrontIcon, roles: ['admin', 'super_admin', 'manager'] },
-            { name: 'Voyages', href: '/admin/trips', icon: CalendarIcon, roles: ['admin', 'super_admin', 'manager', 'guichetier', 'agent_embarquement'] },
-            { name: 'Réservations', href: '/admin/bookings', icon: CheckBadgeIcon, roles: ['admin', 'super_admin', 'manager', 'guichetier', 'comptable'] },
+            { name: 'Voyages', href: '/admin/trips', icon: CalendarIcon, roles: ['admin', 'super_admin', 'manager', 'agent_embarquement'] },
+            { name: 'Réservations', href: '/admin/bookings', icon: CheckBadgeIcon, roles: ['admin', 'super_admin', 'manager', 'comptable'] },
         ]
     },
     {

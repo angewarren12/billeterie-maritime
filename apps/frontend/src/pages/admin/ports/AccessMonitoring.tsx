@@ -7,9 +7,9 @@ import {
     UserIcon,
     IdentificationIcon,
     TicketIcon,
-    ClockIcon,
+
     ChartBarIcon,
-    FunnelIcon,
+
     BoltIcon
 } from '@heroicons/react/24/outline';
 

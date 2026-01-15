@@ -8,7 +8,8 @@ import {
     ArrowDownTrayIcon,
     UserGroupIcon,
     InformationCircleIcon,
-    IdentificationIcon
+    IdentificationIcon,
+    UserIcon
 } from '@heroicons/react/24/outline';
 import QRCode from 'react-qr-code';
 
@@ -201,58 +202,82 @@ const BookingDetails = () => {
                                         </h3>
                                     </div>
 
-                                    <div className="grid grid-cols-1 gap-8">
+                                    <div className="grid grid-cols-1 gap-12">
                                         {tickets.map((ticket: any, idx: number) => (
-                                            <div key={idx} className="group overflow-hidden">
-                                                <div className="bg-white rounded-[3rem] border border-gray-100 shadow-md flex flex-col md:flex-row relative">
-                                                    <div className={`absolute left-0 top-0 bottom-0 w-2 transition-all group-hover:w-3 ${segmentIdx === 0 ? 'bg-ocean-600' : 'bg-primary-600'}`}></div>
-
-                                                    <div className="flex-1 p-10">
-                                                        <div className="flex items-center justify-between mb-8">
-                                                            <div className="flex items-center gap-4">
-                                                                <div className="w-14 h-14 bg-gray-50 rounded-2xl flex items-center justify-center text-gray-400">
-                                                                    <IdentificationIcon className="w-8 h-8" />
+                                            <div key={idx} className="group relative">
+                                                {/* Ticket Stub Design - Top Part */}
+                                                <div className="bg-white rounded-t-[3rem] border-x border-t border-gray-100 shadow-xl overflow-hidden">
+                                                    <div className={`h-2 w-full ${segmentIdx === 0 ? 'bg-ocean-600' : 'bg-primary-600'}`}></div>
+                                                    <div className="p-8 md:p-12">
+                                                        <div className="flex flex-col md:flex-row justify-between gap-8">
+                                                            <div className="flex-1 space-y-8">
+                                                                <div className="flex items-center gap-6">
+                                                                    <div className={`w-16 h-16 rounded-3xl flex items-center justify-center text-white shadow-2xl ${segmentIdx === 0 ? 'bg-ocean-500' : 'bg-primary-500'}`}>
+                                                                        <UserIcon className="w-8 h-8" />
+                                                                    </div>
+                                                                    <div>
+                                                                        <p className="text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] mb-1">Détenteur du billet</p>
+                                                                        <h4 className="text-3xl font-black text-gray-900 tracking-tighter uppercase">{ticket.passenger_name}</h4>
+                                                                    </div>
                                                                 </div>
-                                                                <div>
-                                                                    <p className="text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] mb-1">Passager</p>
-                                                                    <h4 className="text-2xl font-black text-gray-900">{ticket.passenger_name}</h4>
+
+                                                                <div className="grid grid-cols-2 md:grid-cols-4 gap-8">
+                                                                    <div>
+                                                                        <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1.5">CLASSE</p>
+                                                                        <p className="text-sm font-black text-gray-900 uppercase">Économique</p>
+                                                                    </div>
+                                                                    <div>
+                                                                        <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1.5">SIÈGE</p>
+                                                                        <p className="text-sm font-black text-ocean-600 uppercase">LIBRE</p>
+                                                                    </div>
+                                                                    <div>
+                                                                        <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1.5">NAVIRÉ</p>
+                                                                        <p className="text-sm font-black text-gray-900 uppercase truncate max-w-[120px]">{ticket.trip.ship?.name || 'Navette Express'}</p>
+                                                                    </div>
+                                                                    <div>
+                                                                        <p className="text-[10px] font-black text-orange-500 uppercase tracking-widest mb-1.5">EMBARQUEMENT</p>
+                                                                        <p className="text-sm font-black text-gray-900">
+                                                                            {new Date(new Date(ticket.trip.departure_time).getTime() - 30 * 60000).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}
+                                                                        </p>
+                                                                    </div>
                                                                 </div>
                                                             </div>
-                                                            <div className="text-right">
-                                                                <span className="inline-block px-4 py-1.5 bg-gray-900 text-white text-[10px] font-black uppercase tracking-widest rounded-full">
-                                                                    #{ticket.id.slice(0, 8)}
-                                                                </span>
-                                                            </div>
-                                                        </div>
 
-                                                        <div className="grid grid-cols-2 md:grid-cols-3 gap-y-8 gap-x-4 pt-8 border-t border-dashed border-gray-100">
-                                                            <div>
-                                                                <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2">Type</p>
-                                                                <p className="text-sm font-black text-gray-800 uppercase">{ticket.passenger_type}</p>
-                                                            </div>
-                                                            <div>
-                                                                <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2">Catégorie</p>
-                                                                <p className="text-sm font-black text-gray-800 uppercase">{ticket.nationality_group}</p>
-                                                            </div>
-                                                            <div>
-                                                                <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2">Départ</p>
-                                                                <p className="text-sm font-black text-ocean-600">
-                                                                    {new Date(ticket.trip.departure_time).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}
-                                                                </p>
+                                                            <div className="flex flex-col md:flex-col items-center justify-center gap-6 bg-gray-50/50 rounded-[2.5rem] p-8 border border-gray-100 min-w-[200px]">
+                                                                <div className="bg-white p-4 rounded-3xl shadow-xl border border-gray-100">
+                                                                    <QRCode
+                                                                        value={ticket.qr_code_data || ticket.id}
+                                                                        size={120}
+                                                                        style={{ height: "auto", maxWidth: "100%", width: "100%" }}
+                                                                    />
+                                                                </div>
+                                                                <div className="text-center">
+                                                                    <p className="text-[9px] font-black text-gray-400 uppercase tracking-[0.2em]">RÉFÉRENCE BILLET</p>
+                                                                    <p className="text-xs font-black text-gray-900 font-mono tracking-wider">#{ticket.id.slice(0, 12).toUpperCase()}</p>
+                                                                </div>
                                                             </div>
                                                         </div>
                                                     </div>
+                                                </div>
 
-                                                    <div className="w-full md:w-64 bg-gray-50/80 p-10 flex flex-col items-center justify-center border-t md:border-t-0 md:border-l-2 border-dashed border-gray-200 relative">
-                                                        <div className="bg-white p-4 rounded-3xl shadow-sm border border-gray-100 mb-4">
-                                                            <QRCode
-                                                                value={ticket.qr_code_data || ticket.id}
-                                                                size={120}
-                                                                style={{ height: "auto", maxWidth: "100%", width: "100%" }}
-                                                            />
+                                                {/* Perforation Line */}
+                                                <div className="relative h-12 bg-white border-x border-gray-100 flex items-center justify-center">
+                                                    <div className="absolute left-[-16px] w-8 h-8 rounded-full bg-gray-50 border border-gray-100 shadow-inner"></div>
+                                                    <div className="w-full mx-6 border-t-2 border-dashed border-gray-200"></div>
+                                                    <div className="absolute right-[-16px] w-8 h-8 rounded-full bg-gray-50 border border-gray-100 shadow-inner"></div>
+                                                </div>
+
+                                                {/* Ticket Stub Design - Bottom Part */}
+                                                <div className="bg-white rounded-b-[3rem] border-x border-b border-gray-100 p-8 shadow-xl flex items-center justify-between">
+                                                    <div className="flex items-center gap-4">
+                                                        <div className="w-10 h-10 rounded-full bg-green-50 flex items-center justify-center">
+                                                            <svg className="w-5 h-5 text-green-500" fill="currentColor" viewBox="0 0 20 20"><path d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" /></svg>
                                                         </div>
-                                                        <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Scanner pour embarquer</p>
+                                                        <p className="text-xs font-black text-gray-900 uppercase tracking-widest">Billet Valide</p>
                                                     </div>
+                                                    <button onClick={handleDownloadPdf} className="p-3 bg-gray-50 rounded-2xl text-gray-400 hover:text-ocean-600 transition-colors active:scale-90">
+                                                        <ArrowDownTrayIcon className="w-5 h-5" />
+                                                    </button>
                                                 </div>
                                             </div>
                                         ))}

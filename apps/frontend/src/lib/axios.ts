@@ -2,7 +2,7 @@ import axios from 'axios';
 
 // Instance partagée d'Axios pour toutes les requêtes API
 const api = axios.create({
-    baseURL: 'http://localhost:8000', // URL du backend
+    baseURL: import.meta.env.VITE_API_URL || 'http://localhost:8000', // URL du backend
     headers: {
         'X-Requested-With': 'XMLHttpRequest',
         'Accept': 'application/json',
